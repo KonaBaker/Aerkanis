@@ -11,6 +11,11 @@ The name, **Aerkanis**, is composed of **Aer**(air/atmosphere) + vul**kan** + nu
 
 ## Features TODO
 - **Basic Pipeline**
+  - [ ] basic scene and utils
+  - [ ] GUI
+  - [ ] main cloud pipeline
+  - [ ] environment pipeline
+  - [ ] post process pipeline
 - **Cloud Algorithm**
   - [ ] nubis1 Height Gradient Interpolation
   - [ ] nubis2 Vertical Profile Model
