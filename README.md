@@ -12,19 +12,19 @@ The name, **Aerkanis**, is composed of **Aer**(air/atmosphere) + vul**kan** + nu
 ## Features TODO
 - **Basic Pipeline**
 - **Cloud Algorithm**
-  - [] nubis1 Height Gradient Interpolation
-  - [] nubis2 Vertical Profile Model
-  - [] nubis3 3D Voxel Ray Marching
-  - [] thundercloud
+  - [ ] nubis1 Height Gradient Interpolation
+  - [ ] nubis2 Vertical Profile Model
+  - [ ] nubis3 3D Voxel Ray Marching
+  - [ ] thundercloud
 - **Environment**
-  - [] sky
-      - [] skybox
-      - [] time rolling
-  - [] thunder
-  - [] height/depth fog
+  - [ ] sky
+      - [ ] skybox
+      - [ ] time rolling
+  - [ ] thunder
+  - [ ] height/depth fog
 - **Post Processing**
-  - [] screen space weather(rain)
-  - [] god ray
-  - [] bloom, blur, etc.
+  - [ ] screen space weather(rain)
+  - [ ] god ray
+  - [ ] bloom, blur, etc.
 - **Interaction**
-  - [] going through
+  - [ ] going through
