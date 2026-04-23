@@ -1,13 +1,8 @@
 cmake_minimum_required(VERSION 3.29)
 
-# vcpkg toolchain -- must be before project()
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
-endif()
-
 project(Aerkanis LANGUAGES CXX)
 
-# C++ 20 
+# C++ 20
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -21,8 +16,8 @@ find_package(glm REQUIRED)
 find_package(stb REQUIRED)
 
 #optional
-find_package(imgui QUIET)  
-find_package(VulkanMemoryAllocator QUIET)  
+find_package(imgui QUIET)
+find_package(VulkanMemoryAllocator QUIET)
 
 # Slang shader compilation
 find_program(SLANGC slangc HINTS "$ENV{VULKAN_SDK}/bin" REQUIRED)
@@ -133,7 +128,7 @@ target_compile_definitions(Aerkanis PRIVATE
     VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS
 )
 
-# ImGui 
+# ImGui
 if(imgui_FOUND)
     target_link_libraries(Aerkanis PRIVATE imgui::imgui)
     target_compile_definitions(Aerkanis PRIVATE AERKANIS_IMGUI=1)
@@ -161,16 +156,26 @@ if(MSVC)
     )
 endif()
 
-# Shader dependencies 
+# Shader dependencies
 if(_SHADER_TARGETS)
     add_dependencies(Aerkanis ${_SHADER_TARGETS})
 endif()
 
 # Assets: mirror asset/ -> build/asset/ on every build
-add_custom_target(Aerkanis_Assets ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/asset"
-            "${CMAKE_BINARY_DIR}/asset"
-    COMMENT "Syncing assets"
-)
+set(AERKANIS_ASSET_SRC "${CMAKE_CURRENT_SOURCE_DIR}/asset")
+set(AERKANIS_ASSET_DST "${CMAKE_BINARY_DIR}/asset")
+
+if(EXISTS "${AERKANIS_ASSET_SRC}")
+    add_custom_target(Aerkanis_Assets ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${AERKANIS_ASSET_SRC}"
+                "${AERKANIS_ASSET_DST}"
+        COMMENT "Syncing assets"
+    )
+else()
+    add_custom_target(Aerkanis_Assets ALL
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${AERKANIS_ASSET_DST}"
+        COMMENT "No asset/ directory found; creating build/asset/"
+    )
+endif()
 add_dependencies(Aerkanis Aerkanis_Assets)
