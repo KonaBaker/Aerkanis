@@ -11,18 +11,17 @@
 namespace Aerkanis
 {
 
-    namespace Details
-    {
-        auto validationEnabledByDefault() -> bool;
-        auto hasLayer(std::vector<vk::LayerProperties> const& layers, const char* name) -> bool;
-        auto hasExtension(std::vector<vk::ExtensionProperties> const& extensions, const char* name) -> bool;
-    }  // namespace Details
+    struct Window;
 
     struct ContextConfig
     {
         std::string appName = "Aerkanis";
         std::string engineName = "Aerkanis";
-        bool enableValidation = Details::validationEnabledByDefault();
+#ifndef NDEBUG
+        bool enableValidation = true;
+#else
+        bool enableValidation = false;
+#endif
     };
 
     struct QueueFamilyIndices
@@ -41,6 +40,7 @@ namespace Aerkanis
         vk::raii::Context loaderContext{&vkGetInstanceProcAddr};
     #endif
         vk::raii::Instance instance{nullptr};
+        vk::raii::SurfaceKHR surface{nullptr};
         vk::raii::DebugUtilsMessengerEXT debugMessenger{nullptr};
         vk::raii::PhysicalDevice physicalDevice{nullptr};
         vk::raii::Device device{nullptr};
@@ -51,9 +51,19 @@ namespace Aerkanis
         QueueFamilyIndices queueFamilies{};
         bool validationEnabled{false};
 
-        auto init(ContextConfig config = {}) -> bool;
-        auto initDevice(const vk::raii::SurfaceKHR& surface) -> bool;
+        auto init(Window const& window, ContextConfig config = {}) -> void;
         auto shutdown() noexcept -> void;
+
+    private:
+        static auto debugCallback(
+            vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
+            vk::DebugUtilsMessageTypeFlagsEXT messageType,
+            const vk::DebugUtilsMessengerCallbackDataEXT* callbackData,
+            void* userData) -> vk::Bool32;
+        auto createInstance(ContextConfig config) -> void;
+        auto createSurface(Window const& window) -> void;
+        auto pickPhysicalDevice() -> void;
+        auto createLogicalDevice() -> void;
     };
 
 }  // namespace Aerkanis
