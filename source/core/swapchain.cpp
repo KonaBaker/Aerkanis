@@ -12,50 +12,50 @@ namespace Aerkanis::Details
 namespace
 {
 
-    auto chooseSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& formats) -> vk::SurfaceFormatKHR
+    auto chooseSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& availableFormats) -> vk::SurfaceFormatKHR
     {
-        for (const vk::SurfaceFormatKHR& format : formats)
-        {
-            if (format.format == vk::Format::eB8G8R8A8Srgb &&
-                format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
-                return format;
-            }
+        const auto iter = std::ranges::find_if(availableFormats, [](vk::SurfaceFormatKHR const& surfaceFormat){
+            return surfaceFormat.format == vk::Format::eB8G8R8A8Srgb && surfaceFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
+        });
+        if(iter == availableFormats.end()) {
+            throw std::runtime_error("has no available surface format!");
         }
-        return formats.front();
+        return *iter;
     }
 
-    auto choosePresentMode(std::vector<vk::PresentModeKHR> const& modes) -> vk::PresentModeKHR
+    auto choosePresentMode(std::vector<vk::PresentModeKHR> const& availablePresentModes) -> vk::PresentModeKHR
     {
-        for (const vk::PresentModeKHR mode : modes)
-        {
-            if (mode == vk::PresentModeKHR::eMailbox)
-            {
-                return mode;
-            }
-        }
-        for (const vk::PresentModeKHR mode : modes)
-        {
-            if (mode == vk::PresentModeKHR::eImmediate)
-            {
-                return mode;
-            }
-        }
-        return vk::PresentModeKHR::eFifo;
+        return std::ranges::any_of(availablePresentModes, [](const auto& presentMode){
+            return presentMode == vk::PresentModeKHR::eMailbox;
+        }) ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo;
     }
 
-    auto clampExtent(vk::Extent2D requested, vk::SurfaceCapabilitiesKHR const& capabilities) -> vk::Extent2D
+    auto chooseExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Window const& window) -> vk::Extent2D
     {
-        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
-        {
+        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
             return capabilities.currentExtent;
         }
 
-        requested.width = std::max(requested.width, 1u);
-        requested.height = std::max(requested.height, 1u);
-        requested.width = std::clamp(requested.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        requested.height = std::clamp(requested.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-        return requested;
+        int width, height;
+        vk::Extent2D extent;
+        window.getFramebufferSize(width, height);
+
+        extent.height = static_cast<uint32_t>(height);
+        extent.width = static_cast<uint32_t>(width);
+
+        return extent;
     }
+
+    uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &capabilities)
+    {
+        auto minImageCount = std::max(3u, capabilities.minImageCount);
+        if ((0 < capabilities.maxImageCount) && (capabilities.maxImageCount < minImageCount))
+        {
+            minImageCount = capabilities.maxImageCount;
+        }
+        return minImageCount;
+    }
+
 
     auto createImageView(const vk::raii::Device& device, vk::Image image, vk::Format format) -> vk::raii::ImageView
     {
@@ -87,82 +87,61 @@ namespace
 namespace Aerkanis
 {
 
-auto Swapchain::init(Context& context, const vk::raii::SurfaceKHR& surface, vk::Extent2D requestedExtent) -> bool
+auto Swapchain::init(Context& context, const vk::raii::SurfaceKHR& surface, Window const& window) -> void
 {
-    shutdown();
+    const vk::SurfaceCapabilitiesKHR surfaceCapabilities =
+        context.physicalDevice.getSurfaceCapabilitiesKHR(static_cast<vk::SurfaceKHR>(*surface));
+    extent = Details::chooseExtent(surfaceCapabilities, window);
+    uint32_t imageCount = Details::chooseSwapMinImageCount(surfaceCapabilities);
 
-    try
-    {
-        const vk::SurfaceCapabilitiesKHR surfaceCapabilities =
-            context.physicalDevice.getSurfaceCapabilitiesKHR(static_cast<vk::SurfaceKHR>(*surface));
-        const std::vector<vk::SurfaceFormatKHR> surfaceFormats =
-            context.physicalDevice.getSurfaceFormatsKHR(static_cast<vk::SurfaceKHR>(*surface));
-        const std::vector<vk::PresentModeKHR> surfacePresentModes =
-            context.physicalDevice.getSurfacePresentModesKHR(static_cast<vk::SurfaceKHR>(*surface));
+    const std::vector<vk::SurfaceFormatKHR> surfaceFormats =
+        context.physicalDevice.getSurfaceFormatsKHR(static_cast<vk::SurfaceKHR>(*surface));
+    const vk::SurfaceFormatKHR chosenFormat = Details::chooseSurfaceFormat(surfaceFormats);
+    imageFormat = chosenFormat.format;
 
-        if (surfaceFormats.empty() || surfacePresentModes.empty())
-        {
-            std::cerr << "[Vulkan] surface does not expose formats or present modes\n";
-            return false;
-        }
+    const std::vector<vk::PresentModeKHR> surfacePresentModes =
+        context.physicalDevice.getSurfacePresentModesKHR(static_cast<vk::SurfaceKHR>(*surface));
+    presentMode = Details::choosePresentMode(surfacePresentModes);
 
-        const vk::SurfaceFormatKHR chosenFormat = Details::chooseSurfaceFormat(surfaceFormats);
-        imageFormat = chosenFormat.format;
-        presentMode = Details::choosePresentMode(surfacePresentModes);
-        extent = Details::clampExtent(requestedExtent, surfaceCapabilities);
+    const std::array<uint32_t, 2> queueFamilyIndices{
+        context.queueFamilies.graphicsFamily.value_or(0),
+        context.queueFamilies.presentFamily.value_or(0),
+    };
 
-        uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
-        if (surfaceCapabilities.maxImageCount > 0)
-        {
-            imageCount = std::min(imageCount, surfaceCapabilities.maxImageCount);
-        }
+    const bool useConcurrentSharing =
+        context.queueFamilies.graphicsFamily.has_value() &&
+        context.queueFamilies.presentFamily.has_value() &&
+        context.queueFamilies.graphicsFamily.value() != context.queueFamilies.presentFamily.value();
 
-        const std::array<uint32_t, 2> queueFamilyIndices{
-            context.queueFamilies.graphicsFamily.value_or(0),
-            context.queueFamilies.presentFamily.value_or(0),
-        };
+    vk::SwapchainCreateInfoKHR swapchainCreateInfo{
+        .surface = static_cast<vk::SurfaceKHR>(*surface),
+        .minImageCount = imageCount,
+        .imageFormat = imageFormat,
+        .imageColorSpace = chosenFormat.colorSpace,
+        .imageExtent = extent,
+        .imageArrayLayers = 1,
+        .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
+        .imageSharingMode = useConcurrentSharing ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
+        .queueFamilyIndexCount = useConcurrentSharing ? static_cast<uint32_t>(queueFamilyIndices.size()) : 0,
+        .pQueueFamilyIndices = useConcurrentSharing ? queueFamilyIndices.data() : nullptr,
+        .preTransform = surfaceCapabilities.currentTransform,
+        .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+        .presentMode = presentMode,
+        .clipped = VK_TRUE,
+        .oldSwapchain = nullptr,
+    };
 
-        const bool useConcurrentSharing =
-            context.queueFamilies.graphicsFamily.has_value() &&
-            context.queueFamilies.presentFamily.has_value() &&
-            context.queueFamilies.graphicsFamily.value() != context.queueFamilies.presentFamily.value();
-
-        vk::SwapchainCreateInfoKHR swapchainCreateInfo{
-            .surface = static_cast<vk::SurfaceKHR>(*surface),
-            .minImageCount = imageCount,
-            .imageFormat = imageFormat,
-            .imageColorSpace = chosenFormat.colorSpace,
-            .imageExtent = extent,
-            .imageArrayLayers = 1,
-            .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
-            .imageSharingMode = useConcurrentSharing ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
-            .queueFamilyIndexCount = useConcurrentSharing ? static_cast<uint32_t>(queueFamilyIndices.size()) : 0,
-            .pQueueFamilyIndices = useConcurrentSharing ? queueFamilyIndices.data() : nullptr,
-            .preTransform = surfaceCapabilities.currentTransform,
-            .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
-            .presentMode = presentMode,
-            .clipped = VK_TRUE,
-            .oldSwapchain = nullptr,
-        };
-
-        swapchain = vk::raii::SwapchainKHR(context.device, swapchainCreateInfo);
-        images = swapchain.getImages();
-        imageViews.reserve(images.size());
-        for (vk::Image image : images)
-        {
-            imageViews.emplace_back(Details::createImageView(context.device, image, imageFormat));
-        }
-
-        recreateRequired = false;
-        return true;
-    } catch (const std::exception& exception) {
-        std::cerr << "[Vulkan] swapchain init failed: " << exception.what() << '\n';
-        shutdown();
-        return false;
+    swapchain = vk::raii::SwapchainKHR(context.device, swapchainCreateInfo);
+    images = swapchain.getImages();
+    imageViews.reserve(images.size());
+    for (vk::Image image : images) {
+        imageViews.emplace_back(Details::createImageView(context.device, image, imageFormat));
     }
+
+    recreateRequired = false;
 }
 
-auto Swapchain::shutdown() noexcept -> void
+auto Swapchain::cleanup() noexcept -> void
 {
     imageViews.clear();
     images.clear();
@@ -173,9 +152,10 @@ auto Swapchain::shutdown() noexcept -> void
     recreateRequired = false;
 }
 
-auto Swapchain::recreate(Context& context, const vk::raii::SurfaceKHR& surface, vk::Extent2D requestedExtent) -> bool
+auto Swapchain::recreate(Context& context, const vk::raii::SurfaceKHR& surface, const Window& window) -> void
 {
-    return init(context, surface, requestedExtent);
+    cleanup();
+    init(context, surface, window);
 }
 
 auto Swapchain::acquireNextImage(const vk::raii::Semaphore& imageAvailable, const vk::raii::Fence& inFlight) -> std::optional<uint32_t>
