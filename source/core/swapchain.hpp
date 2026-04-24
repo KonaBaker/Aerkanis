@@ -25,8 +25,6 @@ struct Swapchain
     auto init(Context& context, const vk::raii::SurfaceKHR& surface, const Window& window) -> void;
     auto cleanup() noexcept -> void;
     auto recreate(Context& context, const vk::raii::SurfaceKHR& surface, const Window& window) -> void;
-    auto acquireNextImage(const vk::raii::Semaphore& imageAvailable, const vk::raii::Fence& inFlight) -> std::optional<uint32_t>;
-    auto present(const Context& context, uint32_t imageIndex, const vk::raii::Semaphore& renderFinished) -> vk::Result;
 };
 
 }  // namespace Aerkanis

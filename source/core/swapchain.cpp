@@ -63,12 +63,6 @@ namespace
             .image = image,
             .viewType = vk::ImageViewType::e2D,
             .format = format,
-            .components = vk::ComponentMapping{
-                .r = vk::ComponentSwizzle::eIdentity,
-                .g = vk::ComponentSwizzle::eIdentity,
-                .b = vk::ComponentSwizzle::eIdentity,
-                .a = vk::ComponentSwizzle::eIdentity,
-            },
             .subresourceRange = vk::ImageSubresourceRange{
                 .aspectMask = vk::ImageAspectFlagBits::eColor,
                 .baseMipLevel = 0,
@@ -133,8 +127,10 @@ auto Swapchain::init(Context& context, const vk::raii::SurfaceKHR& surface, Wind
 
     swapchain = vk::raii::SwapchainKHR(context.device, swapchainCreateInfo);
     images = swapchain.getImages();
+
+    imageViews.clear();
     imageViews.reserve(images.size());
-    for (vk::Image image : images) {
+    for (const auto& image : images) {
         imageViews.emplace_back(Details::createImageView(context.device, image, imageFormat));
     }
 
@@ -156,71 +152,6 @@ auto Swapchain::recreate(Context& context, const vk::raii::SurfaceKHR& surface, 
 {
     cleanup();
     init(context, surface, window);
-}
-
-auto Swapchain::acquireNextImage(const vk::raii::Semaphore& imageAvailable, const vk::raii::Fence& inFlight) -> std::optional<uint32_t>
-{
-    if (static_cast<vk::SwapchainKHR>(*swapchain) == VK_NULL_HANDLE)
-    {
-        return std::nullopt;
-    }
-
-    try
-    {
-        const vk::ResultValue<uint32_t> result = swapchain.acquireNextImage(
-            std::numeric_limits<uint64_t>::max(),
-            static_cast<vk::Semaphore>(imageAvailable),
-            static_cast<vk::Fence>(inFlight));
-
-        if (result.result == vk::Result::eErrorOutOfDateKHR)
-        {
-            recreateRequired = true;
-            return std::nullopt;
-        }
-
-        if (result.result == vk::Result::eSuboptimalKHR)
-        {
-            recreateRequired = true;
-        }
-
-        return result.value;
-    } catch (const std::exception& exception) {
-        std::cerr << "[Vulkan] acquireNextImage failed: " << exception.what() << '\n';
-        recreateRequired = true;
-        return std::nullopt;
-    }
-}
-
-auto Swapchain::present(const Context& context, uint32_t imageIndex, const vk::raii::Semaphore& renderFinished) -> vk::Result
-{
-    if (static_cast<vk::SwapchainKHR>(*swapchain) == VK_NULL_HANDLE)
-    {
-        return vk::Result::eErrorOutOfDateKHR;
-    }
-
-    const vk::Semaphore waitSemaphore = static_cast<vk::Semaphore>(renderFinished);
-    const vk::SwapchainKHR swapchainHandle = static_cast<vk::SwapchainKHR>(*swapchain);
-    const vk::PresentInfoKHR presentInfo{
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &waitSemaphore,
-        .swapchainCount = 1,
-        .pSwapchains = &swapchainHandle,
-        .pImageIndices = &imageIndex,
-    };
-
-    try
-    {
-        const vk::Result result = context.presentQueue.presentKHR(presentInfo);
-        if (result == vk::Result::eSuboptimalKHR || result == vk::Result::eErrorOutOfDateKHR)
-        {
-            recreateRequired = true;
-        }
-        return result;
-    } catch (const std::exception& exception) {
-        std::cerr << "[Vulkan] present failed: " << exception.what() << '\n';
-        recreateRequired = true;
-        return vk::Result::eErrorOutOfDateKHR;
-    }
 }
 
 }  // namespace Aerkanis
