@@ -19,6 +19,7 @@ namespace Aerkanis
         auto shutdown() noexcept -> void;
         auto shouldClose() const noexcept -> bool;
         auto setResizeCallback(ResizeCallback callback) -> void;
+        auto getFramebufferSize(int& width, int& height) const noexcept -> void;
 
         static auto onFramebufferSize(GLFWwindow* nextWindow, int width, int height) -> void;
     };

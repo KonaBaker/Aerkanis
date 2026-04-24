@@ -114,6 +114,11 @@ namespace Aerkanis
         resizeCallback = std::move(callback);
     }
 
+    auto Window::getFramebufferSize(int& width, int& height) const noexcept -> void
+    {
+        glfwGetFramebufferSize(nativeWindow, &width, &height);
+    }
+
     auto Window::onFramebufferSize(GLFWwindow* nextWindow, int width, int height) -> void
     {
         if (auto* self = Details::windowFromHandle(nextWindow); self != nullptr && self->resizeCallback)

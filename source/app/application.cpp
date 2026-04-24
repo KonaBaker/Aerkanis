@@ -1,11 +1,11 @@
 #include "app/application.hpp"
 
-#include <chrono>
-#include <thread>
-#include <utility>
+#include <GLFW/glfw3.h>
 
-namespace Detail
+namespace Details
 {
+    constexpr double WaitTimeoutSeconds = 1.0 / 60.0;
+
     auto sanitizeConfig(Aerkanis::ApplicationConfig config) -> Aerkanis::ApplicationConfig
     {
         if (config.width <= 0)
@@ -20,23 +20,22 @@ namespace Detail
         {
             config.title = "Aerkanis";
         }
-        config.resizable = true;
         return config;
     }
-}  // namespace Detail
+}  // namespace Details
 
 namespace Aerkanis
 {
 
     auto Application::init(ApplicationConfig nextConfig) -> bool
     {
-        config = Detail::sanitizeConfig(nextConfig);
+        shutdown();
+        config = Details::sanitizeConfig(nextConfig);
         if (!appWindow.init(config.width, config.height, config.title, config.resizable))
         {
             return false;
         }
 
-        appWindow.setCloseCallback([this]() { requestQuit(); });
         running = false;
         return true;
     }
@@ -51,16 +50,6 @@ namespace Aerkanis
         return appWindow;
     }
 
-    auto Application::setFrameCallback(FrameCallback callback) -> void
-    {
-        frameCallback = std::move(callback);
-    }
-
-    auto Application::setShutdownCallback(ShutdownCallback callback) -> void
-    {
-        shutdownCallback = std::move(callback);
-    }
-
     auto Application::requestQuit() noexcept -> void
     {
         running = false;
@@ -68,46 +57,23 @@ namespace Aerkanis
 
     auto Application::shutdown() noexcept -> void
     {
-        auto nextShutdown = std::move(shutdownCallback);
-        if (nextShutdown)
-        {
-            nextShutdown();
-        }
-
         appWindow.shutdown();
         running = false;
     }
 
     auto Application::run() -> int
     {
-        using clock = std::chrono::steady_clock;
-
-        if (appWindow.handle() == nullptr)
+        if (appWindow.nativeWindow == nullptr)
         {
+            shutdown();
             return 1;
         }
 
         running = true;
-        auto lastFrame = clock::now();
 
-        while (running)
+        while (running && !appWindow.shouldClose())
         {
-            appWindow.pollEvents();
-            if (!running || appWindow.shouldClose())
-            {
-                break;
-            }
-
-            const auto now = clock::now();
-            const std::chrono::duration<float> delta = now - lastFrame;
-            lastFrame = now;
-
-            if (frameCallback)
-            {
-                frameCallback(delta.count());
-            } else {
-                std::this_thread::sleep_for(std::chrono::milliseconds(16));
-            }
+            glfwWaitEventsTimeout(Details::WaitTimeoutSeconds);
         }
 
         shutdown();
