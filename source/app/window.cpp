@@ -1,21 +1,16 @@
 #include "app/window.hpp"
 
 #include <iostream>
-#include <stdexcept>
 #include <string>
-#include <utility>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-namespace Details
-{
+#include "app/application.hpp"
 
-    auto glfwRefCount() -> int&
-    {
-        static int refCount = 0;
-        return refCount;
-    }
+namespace
+{
+    bool glfwInitialized = false;
 
     auto glfwErrorCallback(int error, const char* description) -> void
     {
@@ -25,52 +20,38 @@ namespace Details
 
     auto ensureGlfwInitialized() -> bool
     {
-        int& refCount = glfwRefCount();
-        if (refCount == 0)
+        if (!glfwInitialized)
         {
             glfwSetErrorCallback(glfwErrorCallback);
             if (glfwInit() == GLFW_FALSE)
             {
                 return false;
             }
+            glfwInitialized = true;
         }
-        ++refCount;
         return true;
     }
 
     auto releaseGlfw() noexcept -> void
     {
-        int& refCount = glfwRefCount();
-        if (refCount <= 0)
+        if (!glfwInitialized)
         {
             return;
         }
 
-        --refCount;
-        if (refCount == 0)
-        {
-            glfwTerminate();
-        }
+        glfwTerminate();
+        glfwInitialized = false;
     }
 
-    auto windowFromHandle(GLFWwindow* nextWindow) noexcept -> Aerkanis::Window*
-    {
-        if (nextWindow == nullptr)
-        {
-            return nullptr;
-        }
 
-        return static_cast<Aerkanis::Window*>(glfwGetWindowUserPointer(nextWindow));
-    }
-
-}  // namespace Details
+}  // namespace
 
 namespace Aerkanis
 {
 
     auto Window::init(int width, int height, std::string title, bool resizable) -> bool
     {
-        if (!Details::ensureGlfwInitialized())
+        if (!ensureGlfwInitialized())
         {
             return false;
         }
@@ -83,12 +64,12 @@ namespace Aerkanis
         nativeWindow = glfwCreateWindow(safeWidth, safeHeight, title.c_str(), nullptr, nullptr);
         if (nativeWindow == nullptr)
         {
-            Details::releaseGlfw();
+            releaseGlfw();
             return false;
         }
 
         glfwSetWindowUserPointer(nativeWindow, this);
-        glfwSetFramebufferSizeCallback(nativeWindow, &Window::onFramebufferSize);
+        glfwSetFramebufferSizeCallback(nativeWindow, &Application::framebufferResizedCallback);
         return true;
     }
 
@@ -100,8 +81,7 @@ namespace Aerkanis
             nativeWindow = nullptr;
         }
 
-        resizeCallback = {};
-        Details::releaseGlfw();
+        releaseGlfw();
     }
 
     auto Window::shouldClose() const noexcept -> bool
@@ -109,22 +89,9 @@ namespace Aerkanis
         return nativeWindow != nullptr && glfwWindowShouldClose(nativeWindow) == GLFW_TRUE;
     }
 
-    auto Window::setResizeCallback(ResizeCallback callback) -> void
-    {
-        resizeCallback = std::move(callback);
-    }
-
-    auto Window::getFramebufferSize(int& width, int& height) const noexcept -> void
+    auto Window::getFramebufferSize(int& width, int& height) const noexcept-> void
     {
         glfwGetFramebufferSize(nativeWindow, &width, &height);
-    }
-
-    auto Window::onFramebufferSize(GLFWwindow* nextWindow, int width, int height) -> void
-    {
-        if (auto* self = Details::windowFromHandle(nextWindow); self != nullptr && self->resizeCallback)
-        {
-            self->resizeCallback(width, height);
-        }
     }
 
 }  // namespace Aerkanis

@@ -4,6 +4,8 @@
 
 #include "app/window.hpp"
 
+struct GLFWwindow;
+
 namespace Aerkanis
 {
 
@@ -17,9 +19,10 @@ namespace Aerkanis
 
     struct Application
     {
-        ApplicationConfig config{};
-        Window appWindow{};
-        bool running{false};
+        ApplicationConfig config;
+        Window appWindow;
+        bool running = false;
+        bool framebufferResized = false;
 
         auto init(ApplicationConfig nextConfig = {}) -> bool;
         auto window() noexcept -> Window&;
@@ -27,6 +30,8 @@ namespace Aerkanis
         auto requestQuit() noexcept -> void;
         auto shutdown() noexcept -> void;
         auto run() -> int;
+
+        static void framebufferResizedCallback(GLFWwindow* window, int width, int height);
     };
 
 }  // namespace Aerkanis

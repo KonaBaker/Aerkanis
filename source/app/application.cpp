@@ -27,6 +27,15 @@ namespace Details
 namespace Aerkanis
 {
 
+    void Application::framebufferResizedCallback(GLFWwindow* window, int width, int height)
+    {
+        auto* appPointer = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+        if (appPointer != nullptr)
+        {
+            appPointer->framebufferResized = true;
+        }
+    }
+
     auto Application::init(ApplicationConfig nextConfig) -> bool
     {
         shutdown();
