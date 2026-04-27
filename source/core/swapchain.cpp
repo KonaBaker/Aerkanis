@@ -133,8 +133,6 @@ auto Swapchain::init(Context& context, const vk::raii::SurfaceKHR& surface, Wind
     for (const auto& image : images) {
         imageViews.emplace_back(Details::createImageView(context.device, image, imageFormat));
     }
-
-    recreateRequired = false;
 }
 
 auto Swapchain::cleanup() noexcept -> void
@@ -145,7 +143,6 @@ auto Swapchain::cleanup() noexcept -> void
     imageFormat = vk::Format::eUndefined;
     extent = vk::Extent2D{.width = 0, .height = 0};
     presentMode = vk::PresentModeKHR::eFifo;
-    recreateRequired = false;
 }
 
 auto Swapchain::recreate(Context& context, const vk::raii::SurfaceKHR& surface, const Window& window) -> void
