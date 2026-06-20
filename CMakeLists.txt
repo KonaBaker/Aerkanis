@@ -19,6 +19,14 @@ find_package(stb REQUIRED)
 find_package(imgui QUIET)
 find_package(VulkanMemoryAllocator QUIET)
 
+set(AERKANIS_LOCAL_IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/source/utils/imgui")
+set(AERKANIS_HAS_LOCAL_IMGUI OFF)
+if(EXISTS "${AERKANIS_LOCAL_IMGUI_DIR}/imgui.h"
+        AND EXISTS "${AERKANIS_LOCAL_IMGUI_DIR}/imgui_impl_glfw.cpp"
+        AND EXISTS "${AERKANIS_LOCAL_IMGUI_DIR}/imgui_impl_vulkan.cpp")
+    set(AERKANIS_HAS_LOCAL_IMGUI ON)
+endif()
+
 # Slang shader compilation
 find_program(SLANGC slangc HINTS "$ENV{VULKAN_SDK}/bin" REQUIRED)
 message(STATUS "slangc : ${SLANGC}")
@@ -126,13 +134,18 @@ target_compile_definitions(Aerkanis PRIVATE
     VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
     VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
     VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
 )
 
 # ImGui
-if(imgui_FOUND)
+if(AERKANIS_HAS_LOCAL_IMGUI)
+    target_include_directories(Aerkanis PRIVATE "${AERKANIS_LOCAL_IMGUI_DIR}")
+    target_compile_definitions(Aerkanis PRIVATE AERKANIS_IMGUI=1)
+    message(STATUS "imgui  : enabled (source/utils/imgui)")
+elseif(imgui_FOUND)
     target_link_libraries(Aerkanis PRIVATE imgui::imgui)
     target_compile_definitions(Aerkanis PRIVATE AERKANIS_IMGUI=1)
-    message(STATUS "imgui  : enabled")
+    message(STATUS "imgui  : enabled (package)")
 else()
     message(STATUS "imgui  : not found  -- GUI pipeline disabled")
 endif()
