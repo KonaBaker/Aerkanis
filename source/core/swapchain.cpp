@@ -14,13 +14,15 @@ namespace
 
     auto chooseSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& availableFormats) -> vk::SurfaceFormatKHR
     {
+        if (availableFormats.empty())
+        {
+            throw std::runtime_error("has no available surface format!");
+        }
+
         const auto iter = std::ranges::find_if(availableFormats, [](vk::SurfaceFormatKHR const& surfaceFormat){
             return surfaceFormat.format == vk::Format::eB8G8R8A8Srgb && surfaceFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
         });
-        if(iter == availableFormats.end()) {
-            throw std::runtime_error("has no available surface format!");
-        }
-        return *iter;
+        return iter == availableFormats.end() ? availableFormats.front() : *iter;
     }
 
     auto choosePresentMode(std::vector<vk::PresentModeKHR> const& availablePresentModes) -> vk::PresentModeKHR
@@ -42,6 +44,9 @@ namespace
 
         extent.height = static_cast<uint32_t>(height);
         extent.width = static_cast<uint32_t>(width);
+
+        extent.width = std::clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        extent.height = std::clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 
         return extent;
     }

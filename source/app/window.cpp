@@ -68,7 +68,7 @@ namespace Aerkanis
             return false;
         }
 
-        glfwSetWindowUserPointer(nativeWindow, this);
+        glfwSetWindowUserPointer(nativeWindow, nullptr);
         glfwSetFramebufferSizeCallback(nativeWindow, &Application::framebufferResizedCallback);
         return true;
     }

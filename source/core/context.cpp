@@ -293,6 +293,25 @@ namespace Aerkanis
             }
 
             const vk::PhysicalDeviceProperties properties = candidate.getProperties();
+            if (properties.apiVersion < VK_API_VERSION_1_3)
+            {
+                continue;
+            }
+
+            VkPhysicalDeviceVulkan13Features vulkan13Features{};
+            vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
+            VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};
+            physicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            physicalDeviceFeatures2.pNext = &vulkan13Features;
+            vkGetPhysicalDeviceFeatures2(
+                static_cast<VkPhysicalDevice>(static_cast<vk::PhysicalDevice>(*candidate)),
+                &physicalDeviceFeatures2);
+            if (vulkan13Features.dynamicRendering != VK_TRUE)
+            {
+                continue;
+            }
+
             int score = 0;
             switch (properties.deviceType)
             {
@@ -394,6 +413,13 @@ namespace Aerkanis
             enabledFeatures.samplerAnisotropy = VK_TRUE;
         }
 
+        vk::PhysicalDeviceVulkan13Features enabledVulkan13Features{};
+        enabledVulkan13Features.dynamicRendering = VK_TRUE;
+
+        vk::PhysicalDeviceFeatures2 enabledFeatures2{};
+        enabledFeatures2.pNext = &enabledVulkan13Features;
+        enabledFeatures2.features = enabledFeatures;
+
         static constexpr std::array<const char*, 1> deviceExtensions{
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         };
@@ -403,8 +429,8 @@ namespace Aerkanis
             .pQueueCreateInfos = queueCreateInfos.data(),
             .enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size()),
             .ppEnabledExtensionNames = deviceExtensions.data(),
-            .pEnabledFeatures = &enabledFeatures,
         };
+        deviceCreateInfo.pNext = &enabledFeatures2;
 
         device = vk::raii::Device(physicalDevice, deviceCreateInfo);
         VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);

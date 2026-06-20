@@ -4,8 +4,6 @@
 
 namespace Details
 {
-    constexpr double WaitTimeoutSeconds = 1.0 / 60.0;
-
     auto sanitizeConfig(Aerkanis::ApplicationConfig config) -> Aerkanis::ApplicationConfig
     {
         if (config.width <= 0)
@@ -29,6 +27,9 @@ namespace Aerkanis
 
     void Application::framebufferResizedCallback(GLFWwindow* window, int width, int height)
     {
+        (void)width;
+        (void)height;
+
         auto* appPointer = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
         if (appPointer != nullptr)
         {
@@ -45,6 +46,14 @@ namespace Aerkanis
             return false;
         }
 
+        glfwSetWindowUserPointer(appWindow.nativeWindow, this);
+        if (!renderer.init(appWindow))
+        {
+            shutdown();
+            return false;
+        }
+
+        framebufferResized = false;
         running = false;
         return true;
     }
@@ -66,7 +75,9 @@ namespace Aerkanis
 
     auto Application::shutdown() noexcept -> void
     {
+        renderer.shutdown();
         appWindow.shutdown();
+        framebufferResized = false;
         running = false;
     }
 
@@ -82,7 +93,11 @@ namespace Aerkanis
 
         while (running && !appWindow.shouldClose())
         {
-            glfwWaitEventsTimeout(Details::WaitTimeoutSeconds);
+            glfwPollEvents();
+            if (!renderer.drawFrame(appWindow, framebufferResized))
+            {
+                running = false;
+            }
         }
 
         shutdown();

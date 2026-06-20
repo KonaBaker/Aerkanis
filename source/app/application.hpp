@@ -3,6 +3,7 @@
 #include <string>
 
 #include "app/window.hpp"
+#include "core/triangle-renderer.hpp"
 
 struct GLFWwindow;
 
@@ -21,6 +22,7 @@ namespace Aerkanis
     {
         ApplicationConfig config;
         Window appWindow;
+        TriangleRenderer renderer;
         bool running = false;
         bool framebufferResized = false;
 
