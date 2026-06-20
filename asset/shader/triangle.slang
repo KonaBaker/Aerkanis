@@ -4,6 +4,27 @@ struct VertexOutput
     float3 color : COLOR0;
 };
 
+struct TrianglePushConstants
+{
+    float4 viewProjectionRow0;
+    float4 viewProjectionRow1;
+    float4 viewProjectionRow2;
+    float4 viewProjectionRow3;
+    float4 triangle;
+};
+
+[[vk::push_constant]]
+ConstantBuffer<TrianglePushConstants> PushConstants;
+
+float4 applyViewProjection(float4 position)
+{
+    return float4(
+        dot(PushConstants.viewProjectionRow0, position),
+        dot(PushConstants.viewProjectionRow1, position),
+        dot(PushConstants.viewProjectionRow2, position),
+        dot(PushConstants.viewProjectionRow3, position));
+}
+
 [shader("vertex")]
 VertexOutput vertMain(uint vertexId : SV_VertexID)
 {
@@ -21,8 +42,17 @@ VertexOutput vertMain(uint vertexId : SV_VertexID)
         float3(0.22f, 0.44f, 1.0f),
     };
 
+    float size = PushConstants.triangle.x;
+    float angle = PushConstants.triangle.y;
+    float sine = sin(angle);
+    float cosine = cos(angle);
+    float2 scaled = positions[vertexId] * size;
+    float2 rotated = float2(
+        scaled.x * cosine - scaled.y * sine,
+        scaled.x * sine + scaled.y * cosine);
+
     VertexOutput output;
-    output.position = float4(positions[vertexId], 0.0f, 1.0f);
+    output.position = applyViewProjection(float4(rotated, 0.0f, 1.0f));
     output.color = colors[vertexId];
     return output;
 }

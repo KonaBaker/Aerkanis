@@ -1,18 +1,32 @@
 #include "core/triangle-renderer.hpp"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 namespace Aerkanis
 {
 
     namespace
     {
+
+        struct TrianglePushConstants
+        {
+            glm::vec4 viewProjectionRow0{};
+            glm::vec4 viewProjectionRow1{};
+            glm::vec4 viewProjectionRow2{};
+            glm::vec4 viewProjectionRow3{};
+            glm::vec4 triangle{};
+        };
+
+        static_assert(sizeof(TrianglePushConstants) == sizeof(glm::vec4) * 5);
 
         auto shaderPath() -> std::filesystem::path
         {
@@ -31,6 +45,39 @@ namespace Aerkanis
             }
 
             return candidates.front();
+        }
+
+        auto matrixRow(glm::mat4 const& matrix, int rowIndex) -> glm::vec4
+        {
+            return glm::vec4{
+                matrix[0][rowIndex],
+                matrix[1][rowIndex],
+                matrix[2][rowIndex],
+                matrix[3][rowIndex],
+            };
+        }
+
+        auto makeTrianglePushConstants(Scene::SceneState const& sceneState, vk::Extent2D extent)
+            -> TrianglePushConstants
+        {
+            const float aspectRatio =
+                extent.height == 0
+                    ? 1.0F
+                    : static_cast<float>(extent.width) / static_cast<float>(extent.height);
+            const glm::mat4 viewProjection = sceneState.camera.viewProjection(aspectRatio);
+
+            return TrianglePushConstants{
+                .viewProjectionRow0 = matrixRow(viewProjection, 0),
+                .viewProjectionRow1 = matrixRow(viewProjection, 1),
+                .viewProjectionRow2 = matrixRow(viewProjection, 2),
+                .viewProjectionRow3 = matrixRow(viewProjection, 3),
+                .triangle = glm::vec4{
+                    sceneState.triangle.size,
+                    sceneState.triangle.rotationRadians,
+                    0.0F,
+                    0.0F,
+                },
+            };
         }
 
         auto waitForDrawableFramebuffer(Window const& window) -> bool
@@ -117,7 +164,14 @@ namespace Aerkanis
 
             triangleShader.init(context.device, shaderPath());
             createTrianglePipeline();
+#if defined(AERKANIS_IMGUI)
+            if (!guiPass.init(window, context, swapchain))
+            {
+                std::cerr << "[ImGui] GUI disabled\n";
+            }
+#endif
 
+            previousFrameTime = std::chrono::steady_clock::now();
             initialized = true;
             return true;
         }
@@ -144,11 +198,13 @@ namespace Aerkanis
 
         trianglePipeline.pipeline.clear();
         trianglePipeline.layout.clear();
+        guiPass.shutdown();
         triangleShader.shutdown();
         frames.shutdown();
         swapchain.cleanup();
         swapchainImageInitialized.clear();
         context.shutdown();
+        previousFrameTime = {};
         initialized = false;
     }
 
@@ -186,7 +242,14 @@ namespace Aerkanis
 
             context.device.resetFences(inFlightFence);
 
-            if (!currentFrame.begin() || !recordTriangleCommands(currentFrame, imageIndex) || !currentFrame.end())
+            const auto currentTime = std::chrono::steady_clock::now();
+            float deltaSeconds = std::chrono::duration<float>(currentTime - previousFrameTime).count();
+            previousFrameTime = currentTime;
+            deltaSeconds = std::clamp(deltaSeconds, 0.0F, 0.1F);
+
+            if (!currentFrame.begin() ||
+                !recordTriangleCommands(currentFrame, imageIndex, window, deltaSeconds) ||
+                !currentFrame.end())
             {
                 return false;
             }
@@ -250,7 +313,12 @@ namespace Aerkanis
             .addShaderStage(triangleShader, vk::ShaderStageFlagBits::eFragment, "fragMain")
             .setColorAttachmentFormat(swapchain.imageFormat)
             .setCullMode(vk::CullModeFlagBits::eNone, vk::FrontFace::eCounterClockwise)
-            .disableDepth();
+            .disableDepth()
+            .addPushConstantRange(vk::PushConstantRange{
+                .stageFlags = vk::ShaderStageFlagBits::eVertex,
+                .offset = 0,
+                .size = static_cast<uint32_t>(sizeof(TrianglePushConstants)),
+            });
 
         trianglePipeline = builder.buildGraphics(context.device);
     }
@@ -263,15 +331,26 @@ namespace Aerkanis
         }
 
         context.device.waitIdle();
+        guiPass.shutdown();
         trianglePipeline.pipeline.clear();
         trianglePipeline.layout.clear();
         swapchain.recreate(context, context.surface, window);
         swapchainImageInitialized.assign(swapchain.images.size(), false);
         createTrianglePipeline();
+#if defined(AERKANIS_IMGUI)
+        if (!guiPass.init(window, context, swapchain))
+        {
+            std::cerr << "[ImGui] GUI disabled after swapchain recreation\n";
+        }
+#endif
         return true;
     }
 
-    auto TriangleRenderer::recordTriangleCommands(FrameData& frame, uint32_t imageIndex) -> bool
+    auto TriangleRenderer::recordTriangleCommands(
+        FrameData& frame,
+        uint32_t imageIndex,
+        Window const& window,
+        float deltaSeconds) -> bool
     {
         if (imageIndex >= swapchain.images.size() || imageIndex >= swapchain.imageViews.size())
         {
@@ -280,6 +359,15 @@ namespace Aerkanis
         }
 
         vk::raii::CommandBuffer const& commandBuffer = frame.commandBuffer;
+        guiPass.beginFrame();
+        cameraController.update(
+            window,
+            sceneState.camera,
+            deltaSeconds,
+            guiPass.wantsMouseCapture(),
+            guiPass.wantsKeyboardCapture());
+        guiPass.drawSceneControls(sceneState);
+
         const vk::ImageLayout oldLayout =
             swapchainImageInitialized[imageIndex]
                 ? vk::ImageLayout::ePresentSrcKHR
@@ -339,7 +427,15 @@ namespace Aerkanis
 
         commandBuffer.setViewport(0, viewport);
         commandBuffer.setScissor(0, scissor);
+
+        const TrianglePushConstants pushConstants = makeTrianglePushConstants(sceneState, swapchain.extent);
+        commandBuffer.pushConstants(
+            static_cast<vk::PipelineLayout>(*trianglePipeline.layout),
+            vk::ShaderStageFlagBits::eVertex,
+            0,
+            vk::ArrayProxy<const TrianglePushConstants>{pushConstants});
         commandBuffer.draw(3, 1, 0, 0);
+        guiPass.render(commandBuffer);
         commandBuffer.endRendering();
 
         transitionSwapchainImage(
