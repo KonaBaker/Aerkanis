@@ -7,7 +7,7 @@ The name, **Aerkanis**, is composed of **Aer**(air/atmosphere) + vul**kan** + nu
 ### Tech Stack
 * **Graphics API:** Vulkan 1.4 (With Modern RAII)
 * **Shading Language:** Slang
-* **Language:** C++20 
+* **Language:** C++ 
 
 ## Capture
 - nubis
