@@ -204,7 +204,7 @@ float lightTransmittance(float3 position, float density)
 float3 skyColor(float3 direction)
 {
     float horizon = saturate01(direction.y * 0.5f + 0.5f);
-    float3 sky = lerp(Params.skyHorizonColor.rgb, Params.skyZenithColor.rgb, horizon);
+    float3 sky = lerp(Params.skyHorizonColor.rgb, Params.skyZenithColor.rgb, pow(horizon, 0.68f));
     float3 sunDirection = normalize(Params.sunDirectionExposure.xyz);
     float sunCos = dot(normalize(direction), sunDirection);
     float sunRadius = max(Params.skyHorizonColor.w, 0.0001f);

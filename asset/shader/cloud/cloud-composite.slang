@@ -21,9 +21,9 @@ VertexOutput vertMain(uint vertexId : SV_VertexID)
 
     float2 uv[3] =
     {
-        float2(0.0f, 1.0f),
-        float2(2.0f, 1.0f),
-        float2(0.0f, -1.0f),
+        float2(0.0f, 0.0f),
+        float2(2.0f, 0.0f),
+        float2(0.0f, 2.0f),
     };
 
     VertexOutput output;

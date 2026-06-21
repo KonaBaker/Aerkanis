@@ -58,9 +58,9 @@ VertexOutput vertMain(uint vertexId : SV_VertexID)
 
     float2 uv[3] =
     {
-        float2(0.0f, 1.0f),
-        float2(2.0f, 1.0f),
-        float2(0.0f, -1.0f),
+        float2(0.0f, 0.0f),
+        float2(2.0f, 0.0f),
+        float2(0.0f, 2.0f),
     };
 
     VertexOutput output;
@@ -79,12 +79,10 @@ float4 fragMain(FragmentInput input) : SV_Target0
 {
     float3 direction = rayDirectionFromUv(input.uv);
     float horizon = saturate01(direction.y * 0.5f + 0.5f);
-    float belowHorizon = saturate01(-direction.y * 8.0f);
     float3 sky = lerp(
         Params.skyHorizonSunRadius.rgb,
         Params.skyZenithSunGlow.rgb,
-        pow(horizon, 0.72f));
-    sky = lerp(sky, Params.skyGroundColor.rgb, belowHorizon);
+        pow(horizon, 0.68f));
     sky *= Params.ambientColorSkyIntensity.w;
 
     float3 sunDirection = normalize(Params.sunDirectionIntensity.xyz);

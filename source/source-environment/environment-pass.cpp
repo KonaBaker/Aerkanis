@@ -244,18 +244,8 @@ namespace Aerkanis::Environment
 #if defined(AERKANIS_IMGUI)
         if (ImGui::CollapsingHeader("Sun Sky", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::Checkbox("Sky Enabled", &settings.enabled);
-            ImGui::SliderFloat("Sun Azimuth", &settings.sunAzimuthDegrees, -180.0F, 180.0F, "%.1f");
-            ImGui::SliderFloat("Sun Elevation", &settings.sunElevationDegrees, -12.0F, 89.0F, "%.1f");
+            ImGui::SliderFloat("Sun Angle", &settings.sunAngleDegrees, -10.0F, 89.0F, "%.1f");
             ImGui::SliderFloat("Sun Intensity", &settings.sunIntensity, 0.0F, 16.0F, "%.2f");
-            ImGui::SliderFloat("Ambient", &settings.ambientIntensity, 0.0F, 4.0F, "%.2f");
-            ImGui::SliderFloat("Sky Intensity", &settings.skyIntensity, 0.0F, 4.0F, "%.2f");
-            ImGui::SliderFloat("Sun Radius", &settings.sunAngularRadiusDegrees, 0.02F, 5.0F, "%.2f");
-            ImGui::SliderFloat("Sun Glow", &settings.sunGlowStrength, 0.0F, 2.0F, "%.2f");
-            ImGui::ColorEdit3("Sun Tint", &settings.sunTint.x);
-            ImGui::ColorEdit3("Horizon", &settings.horizonTint.x);
-            ImGui::ColorEdit3("Zenith", &settings.zenithTint.x);
-            ImGui::ColorEdit3("Ground", &settings.groundTint.x);
         }
 #endif
 
