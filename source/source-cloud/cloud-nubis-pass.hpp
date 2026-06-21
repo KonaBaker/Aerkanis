@@ -11,6 +11,7 @@
 #include "scene/camera.hpp"
 #include "source-cloud/cloud-model.hpp"
 #include "source-cloud/cloud-texture.hpp"
+#include "source-environment/sun-sky.hpp"
 #include "vk/buffer.hpp"
 #include "vk/descriptor-pool.hpp"
 #include "vk/descriptor-set-layout.hpp"
@@ -62,6 +63,7 @@ namespace Aerkanis::Cloud
             vk::ImageView targetView,
             vk::Image targetImage,
             vk::ImageLayout targetLayout,
+            Environment::SunSkyState const& sunSky,
             Scene::Camera const& camera,
             std::size_t frameIndex) -> void;
         auto drawGui() -> void;

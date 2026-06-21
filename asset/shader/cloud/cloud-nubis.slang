@@ -204,7 +204,15 @@ float lightTransmittance(float3 position, float density)
 float3 skyColor(float3 direction)
 {
     float horizon = saturate01(direction.y * 0.5f + 0.5f);
-    return lerp(Params.skyHorizonColor.rgb, Params.skyZenithColor.rgb, horizon);
+    float3 sky = lerp(Params.skyHorizonColor.rgb, Params.skyZenithColor.rgb, horizon);
+    float3 sunDirection = normalize(Params.sunDirectionExposure.xyz);
+    float sunCos = dot(normalize(direction), sunDirection);
+    float sunRadius = max(Params.skyHorizonColor.w, 0.0001f);
+    float sunDisc = smoothstep(cos(sunRadius * 2.0f), cos(sunRadius), sunCos);
+    float sunGlow = pow(saturate01(sunCos), 96.0f) * Params.skyZenithColor.w;
+    float horizonGlow = pow(1.0f - horizon, 2.0f) * max(sunDirection.y, 0.0f) * 0.18f;
+    float3 sun = Params.sunColorIntensity.rgb * Params.sunColorIntensity.w;
+    return sky + sun * (sunDisc + sunGlow * 0.22f + horizonGlow);
 }
 
 [shader("compute")]
@@ -245,6 +253,7 @@ void compMain(uint3 dispatchThreadId : SV_DispatchThreadID)
     float transmittance = 1.0f;
     float3 scattering = 0.0f;
     float3 sunDirection = normalize(Params.sunDirectionExposure.xyz);
+    float sunElevation = saturate01(sunDirection.y * 0.5f + 0.5f);
     float phase = henyeyGreenstein(dot(rayDirection, sunDirection), Params.phaseAndPowder.x);
     float extinction = Params.detailAndDensity.w;
 
@@ -261,9 +270,13 @@ void compMain(uint3 dispatchThreadId : SV_DispatchThreadID)
         float opticalDepth = density * extinction * stepLength;
         float sampleTransmittance = exp(-opticalDepth);
         float light = lightTransmittance(position, density);
+        float silverLining = pow(saturate01(dot(rayDirection, sunDirection)), 12.0f) * 0.35f;
         float3 lighting =
             Params.ambientColorAbsorption.rgb * Params.phaseAndPowder.w +
-            Params.sunColorIntensity.rgb * Params.sunColorIntensity.w * light * (phase * 8.0f + 0.18f);
+            Params.sunColorIntensity.rgb *
+                Params.sunColorIntensity.w *
+                light *
+                (phase * lerp(5.0f, 8.0f, sunElevation) + 0.14f + silverLining);
         scattering += transmittance * (1.0f - sampleTransmittance) * lighting;
         transmittance *= sampleTransmittance;
         if (transmittance < 0.01f)

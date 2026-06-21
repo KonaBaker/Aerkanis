@@ -25,23 +25,6 @@ namespace Aerkanis::Cloud
             return glm::normalize(value);
         }
 
-        auto normalizeOr(glm::vec3 value, glm::vec3 fallback) -> glm::vec3
-        {
-            if (!std::isfinite(value.x) ||
-                !std::isfinite(value.y) ||
-                !std::isfinite(value.z) ||
-                glm::length(value) < 0.001F)
-            {
-                return glm::normalize(fallback);
-            }
-            return glm::normalize(value);
-        }
-
-        auto saturateColor(glm::vec3 value) -> glm::vec3
-        {
-            return glm::clamp(value, glm::vec3{0.0F}, glm::vec3{8.0F});
-        }
-
         auto matrixRow(glm::mat4 const& matrix, int rowIndex) -> glm::vec4
         {
             return glm::vec4{
@@ -82,15 +65,11 @@ namespace Aerkanis::Cloud
         exposure = std::clamp(finiteOr(exposure, 1.0F), 0.01F, 8.0F);
 
         windDirection = normalizeOr(windDirection, glm::vec2{1.0F, 0.28F});
-        sunDirection = normalizeOr(sunDirection, glm::vec3{-0.42F, 0.62F, -0.66F});
-        sunColor = saturateColor(sunColor);
-        ambientColor = saturateColor(ambientColor);
-        skyHorizonColor = saturateColor(skyHorizonColor);
-        skyZenithColor = saturateColor(skyZenithColor);
     }
 
     auto makeCloudNubisParameters(
         CloudSettings const& settings,
+        Environment::SunSkyState const& sunSky,
         Scene::Camera const& camera,
         vk::Extent2D extent,
         float elapsedSeconds) -> CloudNubisParameters
@@ -139,14 +118,20 @@ namespace Aerkanis::Cloud
                 cloud.typeBlend,
                 cloud.baseBrightness,
             },
-            .sunDirectionExposure = glm::vec4{glm::normalize(cloud.sunDirection), cloud.exposure},
-            .sunColorIntensity = glm::vec4{cloud.sunColor, 1.0F},
-            .ambientColorAbsorption = glm::vec4{cloud.ambientColor, cloud.absorption},
+            .sunDirectionExposure = glm::vec4{glm::normalize(sunSky.sunDirection), cloud.exposure},
+            .sunColorIntensity = glm::vec4{sunSky.sunColor, sunSky.sunIntensity},
+            .ambientColorAbsorption = glm::vec4{sunSky.ambientColor, cloud.absorption},
             .gradientStratus = glm::vec4{0.00F, 0.12F, 0.54F, 0.86F},
             .gradientCumulus = glm::vec4{0.02F, 0.22F, 0.72F, 1.00F},
             .gradientCumulonimbus = glm::vec4{0.00F, 0.14F, 0.92F, 1.00F},
-            .skyHorizonColor = glm::vec4{cloud.skyHorizonColor, 1.0F},
-            .skyZenithColor = glm::vec4{cloud.skyZenithColor, 1.0F},
+            .skyHorizonColor = glm::vec4{
+                sunSky.skyHorizonColor * sunSky.skyIntensity,
+                sunSky.sunAngularRadiusRadians,
+            },
+            .skyZenithColor = glm::vec4{
+                sunSky.skyZenithColor * sunSky.skyIntensity,
+                sunSky.sunGlowStrength,
+            },
         };
         return parameters;
     }

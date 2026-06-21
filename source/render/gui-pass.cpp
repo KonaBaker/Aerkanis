@@ -214,7 +214,7 @@ namespace Aerkanis
 #endif
     }
 
-    auto GuiPass::drawSceneControls(Scene::SceneState& sceneState) -> void
+    auto GuiPass::drawSceneControls(Scene::SceneState& sceneState, bool showTriangleControls) -> void
     {
 #if defined(AERKANIS_IMGUI)
         if (initialized && imguiContext != nullptr)
@@ -225,11 +225,13 @@ namespace Aerkanis
 
             if (ImGui::Begin("Scene"))
             {
-                ImGui::TextUnformatted("Triangle");
-                ImGui::SliderFloat("Size", &sceneState.triangle.size, 0.05F, 4.0F, "%.2f");
-                ImGui::SliderAngle("Rotation", &sceneState.triangle.rotationRadians, -180.0F, 180.0F);
-
-                ImGui::Separator();
+                if (showTriangleControls)
+                {
+                    ImGui::TextUnformatted("Triangle");
+                    ImGui::SliderFloat("Size", &sceneState.triangle.size, 0.05F, 4.0F, "%.2f");
+                    ImGui::SliderAngle("Rotation", &sceneState.triangle.rotationRadians, -180.0F, 180.0F);
+                    ImGui::Separator();
+                }
                 ImGui::TextUnformatted("Camera");
                 ImGui::DragFloat3("Position", &sceneState.camera.position.x, 0.02F, -20.0F, 20.0F, "%.2f");
                 ImGui::DragFloat3("Target", &sceneState.camera.target.x, 0.02F, -20.0F, 20.0F, "%.2f");

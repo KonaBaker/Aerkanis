@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "scene/camera.hpp"
+#include "source-environment/sun-sky.hpp"
 
 namespace Aerkanis::Cloud
 {
@@ -33,11 +34,6 @@ namespace Aerkanis::Cloud
         float baseBrightness{0.38F};
         float exposure{1.0F};
         glm::vec2 windDirection{1.0F, 0.28F};
-        glm::vec3 sunDirection{-0.42F, 0.62F, -0.66F};
-        glm::vec3 sunColor{1.0F, 0.88F, 0.66F};
-        glm::vec3 ambientColor{0.38F, 0.48F, 0.68F};
-        glm::vec3 skyHorizonColor{0.54F, 0.68F, 0.86F};
-        glm::vec3 skyZenithColor{0.08F, 0.18F, 0.38F};
 
         auto sanitize() -> void;
     };
@@ -68,6 +64,7 @@ namespace Aerkanis::Cloud
 
     auto makeCloudNubisParameters(
         CloudSettings const& settings,
+        Environment::SunSkyState const& sunSky,
         Scene::Camera const& camera,
         vk::Extent2D extent,
         float elapsedSeconds) -> CloudNubisParameters;

@@ -1,4 +1,4 @@
-#include "core/triangle-renderer.hpp"
+#include "render/render.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,6 +10,10 @@
 
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+
+#if defined(AERKANIS_IMGUI)
+#include "imgui.h"
+#endif
 
 namespace Aerkanis
 {
@@ -28,12 +32,12 @@ namespace Aerkanis
 
         static_assert(sizeof(TrianglePushConstants) == sizeof(glm::vec4) * 5);
 
-        auto shaderPath() -> std::filesystem::path
+        auto shaderPath(std::filesystem::path const& relativePath) -> std::filesystem::path
         {
             const std::array candidates{
-                std::filesystem::current_path() / "shaders" / "triangle.spv",
-                std::filesystem::current_path() / ".." / "shaders" / "triangle.spv",
-                std::filesystem::current_path() / "build" / "shaders" / "triangle.spv",
+                std::filesystem::current_path() / "shaders" / relativePath,
+                std::filesystem::current_path() / ".." / "shaders" / relativePath,
+                std::filesystem::current_path() / "build" / "shaders" / relativePath,
             };
 
             for (std::filesystem::path const& candidate : candidates)
@@ -130,6 +134,62 @@ namespace Aerkanis
             commandBuffer.pipelineBarrier(srcStage, dstStage, {}, {}, {}, barrier);
         }
 
+        auto clearTarget(
+            vk::raii::CommandBuffer const& commandBuffer,
+            vk::ImageView targetView,
+            vk::ImageLayout targetLayout,
+            vk::Extent2D extent,
+            std::array<float, 4> color) -> void
+        {
+            vk::ClearColorValue clearColor{};
+            clearColor.float32 = color;
+
+            vk::ClearValue clearValue{};
+            clearValue.color = clearColor;
+
+            const vk::RenderingAttachmentInfo colorAttachment{
+                .imageView = targetView,
+                .imageLayout = targetLayout,
+                .loadOp = vk::AttachmentLoadOp::eClear,
+                .storeOp = vk::AttachmentStoreOp::eStore,
+                .clearValue = clearValue,
+            };
+
+            const vk::RenderingInfo renderingInfo{
+                .renderArea = vk::Rect2D{
+                    .offset = vk::Offset2D{.x = 0, .y = 0},
+                    .extent = extent,
+                },
+                .layerCount = 1,
+                .colorAttachmentCount = 1,
+                .pColorAttachments = &colorAttachment,
+            };
+
+            commandBuffer.beginRendering(renderingInfo);
+            commandBuffer.endRendering();
+        }
+
+        auto setFullscreenViewport(
+            vk::raii::CommandBuffer const& commandBuffer,
+            vk::Extent2D extent) -> void
+        {
+            const vk::Viewport viewport{
+                .x = 0.0F,
+                .y = 0.0F,
+                .width = static_cast<float>(extent.width),
+                .height = static_cast<float>(extent.height),
+                .minDepth = 0.0F,
+                .maxDepth = 1.0F,
+            };
+            const vk::Rect2D scissor{
+                .offset = vk::Offset2D{.x = 0, .y = 0},
+                .extent = extent,
+            };
+
+            commandBuffer.setViewport(0, viewport);
+            commandBuffer.setScissor(0, scissor);
+        }
+
         auto isUsableAcquireResult(vk::Result result) noexcept -> bool
         {
             return result == vk::Result::eSuccess || result == vk::Result::eSuboptimalKHR;
@@ -137,7 +197,7 @@ namespace Aerkanis
 
     }  // namespace
 
-    auto TriangleRenderer::init(Window const& window) -> bool
+    auto Render::init(Window const& window) -> bool
     {
         shutdown();
 
@@ -162,8 +222,12 @@ namespace Aerkanis
                 throw std::runtime_error("failed to initialize frame data");
             }
 
-            triangleShader.init(context.device, shaderPath());
+            triangleShader.init(context.device, shaderPath("triangle.spv"));
             createTrianglePipeline();
+            if (!environmentPass.init(context, swapchain.imageFormat, swapchain.extent, frames.size()))
+            {
+                std::cerr << "[Environment] Sun sky pass disabled\n";
+            }
             if (!cloudNubisPass.init(context, swapchain.imageFormat, swapchain.extent, frames.size()))
             {
                 std::cerr << "[Cloud] Nubis pass disabled\n";
@@ -181,13 +245,13 @@ namespace Aerkanis
         }
         catch (std::exception const& exception)
         {
-            std::cerr << "[Vulkan] triangle renderer init failed: " << exception.what() << '\n';
+            std::cerr << "[Vulkan] render init failed: " << exception.what() << '\n';
             shutdown();
             return false;
         }
     }
 
-    auto TriangleRenderer::shutdown() noexcept -> void
+    auto Render::shutdown() noexcept -> void
     {
         try
         {
@@ -204,6 +268,7 @@ namespace Aerkanis
         trianglePipeline.layout.clear();
         guiPass.shutdown();
         cloudNubisPass.shutdown();
+        environmentPass.shutdown();
         triangleShader.shutdown();
         frames.shutdown();
         swapchain.cleanup();
@@ -213,7 +278,7 @@ namespace Aerkanis
         initialized = false;
     }
 
-    auto TriangleRenderer::drawFrame(Window const& window, bool& framebufferResized) -> bool
+    auto Render::drawFrame(Window const& window, bool& framebufferResized) -> bool
     {
         if (!initialized)
         {
@@ -253,7 +318,7 @@ namespace Aerkanis
             deltaSeconds = std::clamp(deltaSeconds, 0.0F, 0.1F);
 
             if (!currentFrame.begin() ||
-                !recordTriangleCommands(currentFrame, imageIndex, window, deltaSeconds) ||
+                !recordCommands(currentFrame, imageIndex, window, deltaSeconds) ||
                 !currentFrame.end())
             {
                 return false;
@@ -308,7 +373,7 @@ namespace Aerkanis
         }
     }
 
-    auto TriangleRenderer::createTrianglePipeline() -> void
+    auto Render::createTrianglePipeline() -> void
     {
         trianglePipeline.pipeline.clear();
         trianglePipeline.layout.clear();
@@ -328,7 +393,7 @@ namespace Aerkanis
         trianglePipeline = builder.buildGraphics(context.device);
     }
 
-    auto TriangleRenderer::recreateSwapchain(Window const& window) -> bool
+    auto Render::recreateSwapchain(Window const& window) -> bool
     {
         if (!waitForDrawableFramebuffer(window))
         {
@@ -342,6 +407,19 @@ namespace Aerkanis
         swapchain.recreate(context, context.surface, window);
         swapchainImageInitialized.assign(swapchain.images.size(), false);
         createTrianglePipeline();
+
+        if (environmentPass.initialized)
+        {
+            if (!environmentPass.recreate(swapchain.imageFormat, swapchain.extent))
+            {
+                std::cerr << "[Environment] Sun sky pass disabled after swapchain recreation\n";
+            }
+        }
+        else if (!environmentPass.init(context, swapchain.imageFormat, swapchain.extent, frames.size()))
+        {
+            std::cerr << "[Environment] Sun sky pass disabled after swapchain recreation\n";
+        }
+
         if (cloudNubisPass.initialized)
         {
             if (!cloudNubisPass.recreate(swapchain.imageFormat, swapchain.extent))
@@ -358,7 +436,7 @@ namespace Aerkanis
         return true;
     }
 
-    auto TriangleRenderer::recordTriangleCommands(
+    auto Render::recordCommands(
         FrameData& frame,
         uint32_t imageIndex,
         Window const& window,
@@ -372,15 +450,18 @@ namespace Aerkanis
 
         vk::raii::CommandBuffer const& commandBuffer = frame.commandBuffer;
         guiPass.beginFrame();
+        settings.sanitize();
+        sunSkySettings.sanitize();
         cameraController.update(
             window,
             sceneState.camera,
             deltaSeconds,
             guiPass.wantsMouseCapture(),
             guiPass.wantsKeyboardCapture());
-        guiPass.drawSceneControls(sceneState);
-        cloudNubisPass.drawGui();
+        guiPass.drawSceneControls(sceneState, settings.pipeline == RenderPipeline::TriangleDemo);
+        drawRenderControls();
 
+        const Environment::SunSkyState sunSky = Environment::makeSunSkyState(sunSkySettings);
         const vk::ImageLayout oldLayout =
             swapchainImageInitialized[imageIndex]
                 ? vk::ImageLayout::ePresentSrcKHR
@@ -396,6 +477,54 @@ namespace Aerkanis
             vk::PipelineStageFlagBits::eTopOfPipe,
             vk::PipelineStageFlagBits::eColorAttachmentOutput);
 
+        switch (settings.pipeline)
+        {
+        case RenderPipeline::TriangleDemo:
+            recordTriangleDemo(commandBuffer, imageIndex);
+            break;
+        case RenderPipeline::SunCloudNubis:
+        case RenderPipeline::SunCloudNubisCubed:
+            recordSunCloud(commandBuffer, imageIndex, sunSky);
+            break;
+        }
+
+        const vk::RenderingAttachmentInfo loadColorAttachment{
+            .imageView = static_cast<vk::ImageView>(*swapchain.imageViews[imageIndex]),
+            .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .loadOp = vk::AttachmentLoadOp::eLoad,
+            .storeOp = vk::AttachmentStoreOp::eStore,
+        };
+
+        const vk::RenderingInfo loadRenderingInfo{
+            .renderArea = vk::Rect2D{
+                .offset = vk::Offset2D{.x = 0, .y = 0},
+                .extent = swapchain.extent,
+            },
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &loadColorAttachment,
+        };
+
+        commandBuffer.beginRendering(loadRenderingInfo);
+        guiPass.render(commandBuffer);
+        commandBuffer.endRendering();
+
+        transitionSwapchainImage(
+            commandBuffer,
+            swapchain.images[imageIndex],
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::ImageLayout::ePresentSrcKHR,
+            vk::AccessFlagBits::eColorAttachmentWrite,
+            {},
+            vk::PipelineStageFlagBits::eColorAttachmentOutput,
+            vk::PipelineStageFlagBits::eBottomOfPipe);
+
+        swapchainImageInitialized[imageIndex] = true;
+        return true;
+    }
+
+    auto Render::recordTriangleDemo(vk::raii::CommandBuffer const& commandBuffer, uint32_t imageIndex) -> void
+    {
         vk::ClearColorValue clearColor{};
         clearColor.float32 = std::array<float, 4>{0.015F, 0.018F, 0.026F, 1.0F};
 
@@ -420,43 +549,11 @@ namespace Aerkanis
             .pColorAttachments = &colorAttachment,
         };
 
-        const vk::RenderingAttachmentInfo loadColorAttachment{
-            .imageView = static_cast<vk::ImageView>(*swapchain.imageViews[imageIndex]),
-            .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-            .loadOp = vk::AttachmentLoadOp::eLoad,
-            .storeOp = vk::AttachmentStoreOp::eStore,
-        };
-
-        const vk::RenderingInfo loadRenderingInfo{
-            .renderArea = vk::Rect2D{
-                .offset = vk::Offset2D{.x = 0, .y = 0},
-                .extent = swapchain.extent,
-            },
-            .layerCount = 1,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &loadColorAttachment,
-        };
-
         commandBuffer.beginRendering(renderingInfo);
         commandBuffer.bindPipeline(
             vk::PipelineBindPoint::eGraphics,
             static_cast<vk::Pipeline>(*trianglePipeline.pipeline));
-
-        const vk::Viewport viewport{
-            .x = 0.0F,
-            .y = 0.0F,
-            .width = static_cast<float>(swapchain.extent.width),
-            .height = static_cast<float>(swapchain.extent.height),
-            .minDepth = 0.0F,
-            .maxDepth = 1.0F,
-        };
-        const vk::Rect2D scissor{
-            .offset = vk::Offset2D{.x = 0, .y = 0},
-            .extent = swapchain.extent,
-        };
-
-        commandBuffer.setViewport(0, viewport);
-        commandBuffer.setScissor(0, scissor);
+        setFullscreenViewport(commandBuffer, swapchain.extent);
 
         const TrianglePushConstants pushConstants = makeTrianglePushConstants(sceneState, swapchain.extent);
         commandBuffer.pushConstants(
@@ -466,31 +563,100 @@ namespace Aerkanis
             vk::ArrayProxy<const TrianglePushConstants>{pushConstants});
         commandBuffer.draw(3, 1, 0, 0);
         commandBuffer.endRendering();
+    }
 
-        cloudNubisPass.record(
-            commandBuffer,
-            static_cast<vk::ImageView>(*swapchain.imageViews[imageIndex]),
-            swapchain.images[imageIndex],
-            vk::ImageLayout::eColorAttachmentOptimal,
-            sceneState.camera,
-            frames.currentFrame);
+    auto Render::recordSunCloud(
+        vk::raii::CommandBuffer const& commandBuffer,
+        uint32_t imageIndex,
+        Environment::SunSkyState const& sunSky) -> void
+    {
+        const vk::ImageView targetView = static_cast<vk::ImageView>(*swapchain.imageViews[imageIndex]);
+        if (environmentPass.initialized)
+        {
+            environmentPass.record(
+                commandBuffer,
+                targetView,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                sunSky,
+                sceneState.camera,
+                frames.currentFrame);
+        }
+        else
+        {
+            clearTarget(
+                commandBuffer,
+                targetView,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                swapchain.extent,
+                std::array<float, 4>{0.015F, 0.018F, 0.026F, 1.0F});
+        }
 
-        commandBuffer.beginRendering(loadRenderingInfo);
-        guiPass.render(commandBuffer);
-        commandBuffer.endRendering();
+        if (settings.pipeline == RenderPipeline::SunCloudNubis)
+        {
+            cloudNubisPass.record(
+                commandBuffer,
+                targetView,
+                swapchain.images[imageIndex],
+                vk::ImageLayout::eColorAttachmentOptimal,
+                sunSky,
+                sceneState.camera,
+                frames.currentFrame);
+        }
+    }
 
-        transitionSwapchainImage(
-            commandBuffer,
-            swapchain.images[imageIndex],
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageLayout::ePresentSrcKHR,
-            vk::AccessFlagBits::eColorAttachmentWrite,
-            {},
-            vk::PipelineStageFlagBits::eColorAttachmentOutput,
-            vk::PipelineStageFlagBits::eBottomOfPipe);
+    auto Render::drawRenderControls() -> void
+    {
+#if defined(AERKANIS_IMGUI)
+        if (guiPass.initialized && guiPass.imguiContext != nullptr)
+        {
+            ImGui::SetCurrentContext(guiPass.imguiContext);
+            ImGui::SetNextWindowPos(ImVec2{374.0F, 16.0F}, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2{360.0F, 0.0F}, ImGuiCond_FirstUseEver);
 
-        swapchainImageInitialized[imageIndex] = true;
-        return true;
+            if (ImGui::Begin("Render"))
+            {
+                int pipelineIndex = static_cast<int>(settings.pipeline);
+                const char* pipelineNames[] = {
+                    renderPipelineName(RenderPipeline::TriangleDemo),
+                    renderPipelineName(RenderPipeline::SunCloudNubis),
+                    renderPipelineName(RenderPipeline::SunCloudNubisCubed),
+                };
+                if (ImGui::Combo("Pipeline", &pipelineIndex, pipelineNames, 3))
+                {
+                    settings.pipeline = static_cast<RenderPipeline>(pipelineIndex);
+                }
+
+                if (settings.pipeline != RenderPipeline::TriangleDemo)
+                {
+                    environmentPass.drawGui(sunSkySettings);
+                }
+                if (settings.pipeline == RenderPipeline::SunCloudNubis)
+                {
+                    cloudNubisPass.drawGui();
+                }
+                if (settings.pipeline == RenderPipeline::SunCloudNubisCubed)
+                {
+                    ImGui::Separator();
+                    ImGui::TextUnformatted("Nubis3");
+                    ImGui::Checkbox("Enable Reserved Pass", &settings.nubisCubed.enabled);
+                    ImGui::SliderInt("Dataset", &settings.nubisCubed.datasetIndex, 0, 16);
+                    ImGui::DragFloat("Voxel Scale", &settings.nubisCubed.voxelScale, 0.01F, 0.01F, 64.0F, "%.2f");
+                    ImGui::DragFloat(
+                        "Density",
+                        &settings.nubisCubed.densityMultiplier,
+                        0.01F,
+                        0.0F,
+                        8.0F,
+                        "%.2f");
+                    ImGui::TextDisabled("Renderer hook reserved for cloud-nubis-cubed-pass.");
+                }
+            }
+            ImGui::End();
+        }
+#endif
+
+        settings.sanitize();
+        sunSkySettings.sanitize();
     }
 
 }  // namespace Aerkanis

@@ -27,7 +27,7 @@ namespace Aerkanis
         auto beginFrame() -> void;
         auto wantsMouseCapture() const noexcept -> bool;
         auto wantsKeyboardCapture() const noexcept -> bool;
-        auto drawSceneControls(Scene::SceneState& sceneState) -> void;
+        auto drawSceneControls(Scene::SceneState& sceneState, bool showTriangleControls) -> void;
         auto render(vk::raii::CommandBuffer const& commandBuffer) -> void;
     };
 

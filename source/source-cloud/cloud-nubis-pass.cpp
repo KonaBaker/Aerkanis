@@ -207,6 +207,7 @@ namespace Aerkanis::Cloud
         vk::ImageView targetView,
         vk::Image targetImage,
         vk::ImageLayout targetLayout,
+        Environment::SunSkyState const& sunSky,
         Scene::Camera const& camera,
         std::size_t frameIndex) -> void
     {
@@ -235,7 +236,7 @@ namespace Aerkanis::Cloud
         settings.sanitize();
 
         const CloudNubisParameters parameters =
-            makeCloudNubisParameters(settings, camera, renderExtent, elapsedSeconds());
+            makeCloudNubisParameters(settings, sunSky, camera, renderExtent, elapsedSeconds());
         parameterBuffers[safeFrameIndex].writeObject(parameters);
 
         transitionImage(
@@ -349,9 +350,6 @@ namespace Aerkanis::Cloud
             ImGui::SliderFloat("Powder", &settings.powderStrength, 0.0F, 2.0F, "%.2f");
             ImGui::DragFloat("Wind Speed", &settings.windSpeed, 0.001F, -1.0F, 1.0F, "%.3f");
             ImGui::DragFloat2("Wind Direction", &settings.windDirection.x, 0.01F, -1.0F, 1.0F, "%.2f");
-            ImGui::DragFloat3("Sun Direction", &settings.sunDirection.x, 0.01F, -1.0F, 1.0F, "%.2f");
-            ImGui::ColorEdit3("Sun Color", &settings.sunColor.x);
-            ImGui::ColorEdit3("Ambient", &settings.ambientColor.x);
         }
 #endif
 
