@@ -12,6 +12,7 @@
 #include "render/gui-pass.hpp"
 #include "scene/camera-controller.hpp"
 #include "scene/scene.hpp"
+#include "source-cloud/cloud-nubis-pass.hpp"
 #include "vk/pipeline-builder.hpp"
 #include "vk/shader.hpp"
 
@@ -26,6 +27,7 @@ namespace Aerkanis
         Scene::SceneState sceneState{};
         Scene::CameraController cameraController{};
         GuiPass guiPass{};
+        Cloud::CloudNubisPass cloudNubisPass{};
         Vk::ShaderModule triangleShader{};
         Vk::PipelineBuildResult trianglePipeline{};
         std::vector<bool> swapchainImageInitialized{};

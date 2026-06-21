@@ -9,27 +9,11 @@ The name, **Aerkanis**, is composed of **Aer**(air/atmosphere) + vul**kan** + nu
 * **Shading Language:** Slang
 * **Language:** C++20 (Modern RAII)
 
-## Features TODO
-- **Basic Pipeline**
-  - [ ] basic scene and utils
-  - [ ] GUI
-  - [ ] main cloud pipeline
-  - [ ] environment pipeline
-  - [ ] post process pipeline
-- **Cloud Algorithm**
-  - [ ] nubis1 Height Gradient Interpolation
-  - [ ] nubis2 Vertical Profile Model
-  - [ ] nubis3 3D Voxel Ray Marching
-  - [ ] thundercloud
-- **Environment**
-  - [ ] sky
-      - [ ] skybox
-      - [ ] time rolling
-  - [ ] thunder
-  - [ ] height/depth fog
-- **Post Processing**
-  - [ ] screen space weather(rain)
-  - [ ] god ray
-  - [ ] bloom, blur, etc.
-- **Interaction**
-  - [ ] going through
+## Capture
+- nubis
+
+| <img src="./asset/image/image-20260621182612549.png" alt="image-20260621182612549" style="zoom: 60%;" /> | <img src="./asset/image/image-20260621182617124.png" alt="image-20260621182617124" style="zoom:55%;" /> |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| <img src="./asset/image/image-20260621182609162.png" alt="image-20260621182609162" style="zoom:60%;" /> | <img src="./asset/image/image-20260621182540660.png" alt="image-20260621182540660" style="zoom:50%;" /> |
+
+- nubis3(cubed)

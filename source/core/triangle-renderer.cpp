@@ -164,6 +164,10 @@ namespace Aerkanis
 
             triangleShader.init(context.device, shaderPath());
             createTrianglePipeline();
+            if (!cloudNubisPass.init(context, swapchain.imageFormat, swapchain.extent, frames.size()))
+            {
+                std::cerr << "[Cloud] Nubis pass disabled\n";
+            }
 #if defined(AERKANIS_IMGUI)
             if (!guiPass.init(window, context, swapchain))
             {
@@ -199,6 +203,7 @@ namespace Aerkanis
         trianglePipeline.pipeline.clear();
         trianglePipeline.layout.clear();
         guiPass.shutdown();
+        cloudNubisPass.shutdown();
         triangleShader.shutdown();
         frames.shutdown();
         swapchain.cleanup();
@@ -337,6 +342,13 @@ namespace Aerkanis
         swapchain.recreate(context, context.surface, window);
         swapchainImageInitialized.assign(swapchain.images.size(), false);
         createTrianglePipeline();
+        if (cloudNubisPass.initialized)
+        {
+            if (!cloudNubisPass.recreate(swapchain.imageFormat, swapchain.extent))
+            {
+                std::cerr << "[Cloud] Nubis pass disabled after swapchain recreation\n";
+            }
+        }
 #if defined(AERKANIS_IMGUI)
         if (!guiPass.init(window, context, swapchain))
         {
@@ -367,6 +379,7 @@ namespace Aerkanis
             guiPass.wantsMouseCapture(),
             guiPass.wantsKeyboardCapture());
         guiPass.drawSceneControls(sceneState);
+        cloudNubisPass.drawGui();
 
         const vk::ImageLayout oldLayout =
             swapchainImageInitialized[imageIndex]
@@ -407,6 +420,23 @@ namespace Aerkanis
             .pColorAttachments = &colorAttachment,
         };
 
+        const vk::RenderingAttachmentInfo loadColorAttachment{
+            .imageView = static_cast<vk::ImageView>(*swapchain.imageViews[imageIndex]),
+            .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .loadOp = vk::AttachmentLoadOp::eLoad,
+            .storeOp = vk::AttachmentStoreOp::eStore,
+        };
+
+        const vk::RenderingInfo loadRenderingInfo{
+            .renderArea = vk::Rect2D{
+                .offset = vk::Offset2D{.x = 0, .y = 0},
+                .extent = swapchain.extent,
+            },
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &loadColorAttachment,
+        };
+
         commandBuffer.beginRendering(renderingInfo);
         commandBuffer.bindPipeline(
             vk::PipelineBindPoint::eGraphics,
@@ -435,6 +465,17 @@ namespace Aerkanis
             0,
             vk::ArrayProxy<const TrianglePushConstants>{pushConstants});
         commandBuffer.draw(3, 1, 0, 0);
+        commandBuffer.endRendering();
+
+        cloudNubisPass.record(
+            commandBuffer,
+            static_cast<vk::ImageView>(*swapchain.imageViews[imageIndex]),
+            swapchain.images[imageIndex],
+            vk::ImageLayout::eColorAttachmentOptimal,
+            sceneState.camera,
+            frames.currentFrame);
+
+        commandBuffer.beginRendering(loadRenderingInfo);
         guiPass.render(commandBuffer);
         commandBuffer.endRendering();
 
