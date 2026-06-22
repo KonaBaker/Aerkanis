@@ -38,6 +38,34 @@ namespace Aerkanis::Cloud
         auto sanitize() -> void;
     };
 
+    struct CloudNubisCubedSettings
+    {
+        bool enabled{true};
+        bool lightGridEnabled{true};
+        bool nearFarSplitEnabled{true};
+        bool temporalReprojectionEnabled{true};
+        int datasetIndex{0};
+        int stepCount{104};
+        int shadowStepCount{5};
+        float voxelScale{1.0F};
+        float nearSplitDistance{3.2F};
+        float densityMultiplier{1.15F};
+        float detailScale{2.65F};
+        float detailStrength{0.42F};
+        float farClip{96.0F};
+        float transmittanceLimit{0.018F};
+        float temporalBlend{0.82F};
+        float windSpeed{0.018F};
+        float phaseG{0.58F};
+        float powderStrength{0.64F};
+        float baseBrightness{0.42F};
+        float absorption{0.82F};
+        float exposure{1.0F};
+        glm::vec2 windDirection{1.0F, 0.24F};
+
+        auto sanitize() -> void;
+    };
+
     struct alignas(16) CloudNubisParameters
     {
         glm::vec4 inverseViewProjectionRow0{};
@@ -62,11 +90,51 @@ namespace Aerkanis::Cloud
 
     static_assert(sizeof(CloudNubisParameters) % 16 == 0);
 
+    struct alignas(16) CloudNubisCubedParameters
+    {
+        glm::vec4 inverseViewProjectionRow0{};
+        glm::vec4 inverseViewProjectionRow1{};
+        glm::vec4 inverseViewProjectionRow2{};
+        glm::vec4 inverseViewProjectionRow3{};
+        glm::vec4 cameraPositionTime{};
+        glm::vec4 screenAndSteps{};
+        glm::vec4 boundsMinDataset{};
+        glm::vec4 boundsMaxDensity{};
+        glm::vec4 detailAndMarch{};
+        glm::vec4 windAndExposure{};
+        glm::vec4 lighting{};
+        glm::vec4 sunDirectionAbsorption{};
+        glm::vec4 sunColorIntensity{};
+        glm::vec4 ambientColor{};
+        glm::vec4 skyHorizonColor{};
+        glm::vec4 skyZenithColor{};
+        glm::vec4 previousViewProjectionRow0{};
+        glm::vec4 previousViewProjectionRow1{};
+        glm::vec4 previousViewProjectionRow2{};
+        glm::vec4 previousViewProjectionRow3{};
+        glm::vec4 splitAndGrid{};
+        glm::vec4 featureFlags{};
+    };
+
+    static_assert(sizeof(CloudNubisCubedParameters) % 16 == 0);
+
+    inline constexpr uint32_t NubisCubedLightGridHorizontalSize = 128U;
+    inline constexpr uint32_t NubisCubedLightGridVerticalSize = 32U;
+
     auto makeCloudNubisParameters(
         CloudSettings const& settings,
         Environment::SunSkyState const& sunSky,
         Scene::Camera const& camera,
         vk::Extent2D extent,
         float elapsedSeconds) -> CloudNubisParameters;
+
+    auto makeCloudNubisCubedParameters(
+        CloudNubisCubedSettings const& settings,
+        Environment::SunSkyState const& sunSky,
+        Scene::Camera const& camera,
+        vk::Extent2D extent,
+        float elapsedSeconds,
+        glm::mat4 const& previousViewProjection,
+        bool historyValid) -> CloudNubisCubedParameters;
 
 }  // namespace Aerkanis::Cloud

@@ -232,6 +232,7 @@ namespace Aerkanis
             {
                 std::cerr << "[Cloud] Nubis pass disabled\n";
             }
+            cloudNubisCubedPassAvailable = true;
 #if defined(AERKANIS_IMGUI)
             if (!guiPass.init(window, context, swapchain))
             {
@@ -267,12 +268,14 @@ namespace Aerkanis
         trianglePipeline.pipeline.clear();
         trianglePipeline.layout.clear();
         guiPass.shutdown();
+        cloudNubisCubedPass.shutdown();
         cloudNubisPass.shutdown();
         environmentPass.shutdown();
         triangleShader.shutdown();
         frames.shutdown();
         swapchain.cleanup();
         swapchainImageInitialized.clear();
+        cloudNubisCubedPassAvailable = true;
         context.shutdown();
         previousFrameTime = {};
         initialized = false;
@@ -316,6 +319,8 @@ namespace Aerkanis
             float deltaSeconds = std::chrono::duration<float>(currentTime - previousFrameTime).count();
             previousFrameTime = currentTime;
             deltaSeconds = std::clamp(deltaSeconds, 0.0F, 0.1F);
+            settings.sanitize();
+            static_cast<void>(ensureCloudNubisCubedPass());
 
             if (!currentFrame.begin() ||
                 !recordCommands(currentFrame, imageIndex, window, deltaSeconds) ||
@@ -393,6 +398,32 @@ namespace Aerkanis
         trianglePipeline = builder.buildGraphics(context.device);
     }
 
+    auto Render::ensureCloudNubisCubedPass() -> bool
+    {
+        settings.sanitize();
+        if (settings.pipeline != RenderPipeline::SunCloudNubisCubed || !settings.nubisCubed.enabled)
+        {
+            return true;
+        }
+        if (cloudNubisCubedPass.initialized)
+        {
+            return true;
+        }
+        if (!cloudNubisCubedPassAvailable)
+        {
+            return false;
+        }
+
+        if (!cloudNubisCubedPass.init(context, swapchain.imageFormat, swapchain.extent, frames.size()))
+        {
+            std::cerr << "[Cloud] Nubis3 pass disabled\n";
+            cloudNubisCubedPassAvailable = false;
+            return false;
+        }
+
+        return true;
+    }
+
     auto Render::recreateSwapchain(Window const& window) -> bool
     {
         if (!waitForDrawableFramebuffer(window))
@@ -425,6 +456,14 @@ namespace Aerkanis
             if (!cloudNubisPass.recreate(swapchain.imageFormat, swapchain.extent))
             {
                 std::cerr << "[Cloud] Nubis pass disabled after swapchain recreation\n";
+            }
+        }
+        if (cloudNubisCubedPass.initialized)
+        {
+            if (!cloudNubisCubedPass.recreate(swapchain.imageFormat, swapchain.extent))
+            {
+                std::cerr << "[Cloud] Nubis3 pass disabled after swapchain recreation\n";
+                cloudNubisCubedPassAvailable = false;
             }
         }
 #if defined(AERKANIS_IMGUI)
@@ -602,6 +641,17 @@ namespace Aerkanis
                 sceneState.camera,
                 frames.currentFrame);
         }
+        else if (settings.pipeline == RenderPipeline::SunCloudNubisCubed && cloudNubisCubedPass.initialized)
+        {
+            cloudNubisCubedPass.record(
+                commandBuffer,
+                targetView,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                sunSky,
+                sceneState.camera,
+                settings.nubisCubed,
+                frames.currentFrame);
+        }
     }
 
     auto Render::drawRenderControls() -> void
@@ -636,19 +686,7 @@ namespace Aerkanis
                 }
                 if (settings.pipeline == RenderPipeline::SunCloudNubisCubed)
                 {
-                    ImGui::Separator();
-                    ImGui::TextUnformatted("Nubis3");
-                    ImGui::Checkbox("Enable Reserved Pass", &settings.nubisCubed.enabled);
-                    ImGui::SliderInt("Dataset", &settings.nubisCubed.datasetIndex, 0, 16);
-                    ImGui::DragFloat("Voxel Scale", &settings.nubisCubed.voxelScale, 0.01F, 0.01F, 64.0F, "%.2f");
-                    ImGui::DragFloat(
-                        "Density",
-                        &settings.nubisCubed.densityMultiplier,
-                        0.01F,
-                        0.0F,
-                        8.0F,
-                        "%.2f");
-                    ImGui::TextDisabled("Renderer hook reserved for cloud-nubis-cubed-pass.");
+                    cloudNubisCubedPass.drawGui(settings.nubisCubed);
                 }
             }
             ImGui::End();

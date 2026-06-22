@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -47,6 +48,9 @@ namespace Aerkanis::Cloud
             std::string const& prefix,
             std::string const& suffix,
             uint32_t sliceCount,
+            vk::Format format = vk::Format::eR8G8B8A8Unorm) -> TextureResource;
+        auto uploadVolumeSlicePaths(
+            std::span<const std::filesystem::path> slicePaths,
             vk::Format format = vk::Format::eR8G8B8A8Unorm) -> TextureResource;
 
     private:

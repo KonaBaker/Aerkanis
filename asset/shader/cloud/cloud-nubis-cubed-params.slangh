@@ -1,0 +1,25 @@
+struct CloudNubisCubedParameters
+{
+    float4 inverseViewProjectionRow0;
+    float4 inverseViewProjectionRow1;
+    float4 inverseViewProjectionRow2;
+    float4 inverseViewProjectionRow3;
+    float4 cameraPositionTime;
+    float4 screenAndSteps;
+    float4 boundsMinDataset;
+    float4 boundsMaxDensity;
+    float4 detailAndMarch;
+    float4 windAndExposure;
+    float4 lighting;
+    float4 sunDirectionAbsorption;
+    float4 sunColorIntensity;
+    float4 ambientColor;
+    float4 skyHorizonColor;
+    float4 skyZenithColor;
+    float4 previousViewProjectionRow0;
+    float4 previousViewProjectionRow1;
+    float4 previousViewProjectionRow2;
+    float4 previousViewProjectionRow3;
+    float4 splitAndGrid;
+    float4 featureFlags;
+};

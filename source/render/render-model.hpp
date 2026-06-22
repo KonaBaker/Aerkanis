@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "source-cloud/cloud-model.hpp"
+
 namespace Aerkanis
 {
 
@@ -12,25 +14,10 @@ namespace Aerkanis
         SunCloudNubisCubed = 2,
     };
 
-    struct NubisCubedPipelineSettings
-    {
-        bool enabled{false};
-        int datasetIndex{0};
-        float voxelScale{1.0F};
-        float densityMultiplier{1.0F};
-
-        auto sanitize() -> void
-        {
-            datasetIndex = std::clamp(datasetIndex, 0, 16);
-            voxelScale = std::clamp(voxelScale, 0.01F, 64.0F);
-            densityMultiplier = std::clamp(densityMultiplier, 0.0F, 8.0F);
-        }
-    };
-
     struct RenderSettings
     {
         RenderPipeline pipeline{RenderPipeline::SunCloudNubis};
-        NubisCubedPipelineSettings nubisCubed{};
+        Cloud::CloudNubisCubedSettings nubisCubed{};
 
         auto sanitize() -> void
         {

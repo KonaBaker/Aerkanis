@@ -12,7 +12,7 @@ namespace Aerkanis
         case RenderPipeline::SunCloudNubis:
             return "Sun Cloud Nubis";
         case RenderPipeline::SunCloudNubisCubed:
-            return "Nubis3 Reserved";
+            return "Sun Cloud Nubis3";
         }
 
         return "Sun Cloud Nubis";

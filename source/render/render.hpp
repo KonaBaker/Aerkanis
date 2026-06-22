@@ -13,6 +13,7 @@
 #include "render/render-model.hpp"
 #include "scene/camera-controller.hpp"
 #include "scene/scene.hpp"
+#include "source-cloud/cloud-nubis-cubed-pass.hpp"
 #include "source-cloud/cloud-nubis-pass.hpp"
 #include "source-environment/environment-pass.hpp"
 #include "source-environment/sun-sky.hpp"
@@ -34,10 +35,12 @@ namespace Aerkanis
         Environment::EnvironmentPass environmentPass{};
         GuiPass guiPass{};
         Cloud::CloudNubisPass cloudNubisPass{};
+        Cloud::CloudNubisCubedPass cloudNubisCubedPass{};
         Vk::ShaderModule triangleShader{};
         Vk::PipelineBuildResult trianglePipeline{};
         std::vector<bool> swapchainImageInitialized{};
         std::chrono::steady_clock::time_point previousFrameTime{};
+        bool cloudNubisCubedPassAvailable{true};
         bool initialized{false};
 
         auto init(Window const& window) -> bool;
@@ -46,6 +49,7 @@ namespace Aerkanis
 
     private:
         auto createTrianglePipeline() -> void;
+        auto ensureCloudNubisCubedPass() -> bool;
         auto recreateSwapchain(Window const& window) -> bool;
         auto recordCommands(
             FrameData& frame,

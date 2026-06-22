@@ -67,6 +67,29 @@ namespace Aerkanis::Cloud
         windDirection = normalizeOr(windDirection, glm::vec2{1.0F, 0.28F});
     }
 
+    auto CloudNubisCubedSettings::sanitize() -> void
+    {
+        datasetIndex = std::clamp(datasetIndex, 0, 1);
+        stepCount = std::clamp(stepCount, 16, 192);
+        shadowStepCount = std::clamp(shadowStepCount, 0, 16);
+        voxelScale = std::clamp(finiteOr(voxelScale, 1.0F), 0.1F, 12.0F);
+        nearSplitDistance = std::clamp(finiteOr(nearSplitDistance, 3.2F), 0.0F, 512.0F);
+        densityMultiplier = std::clamp(finiteOr(densityMultiplier, 1.15F), 0.0F, 8.0F);
+        detailScale = std::clamp(finiteOr(detailScale, 2.65F), 0.1F, 16.0F);
+        detailStrength = std::clamp(finiteOr(detailStrength, 0.42F), 0.0F, 2.0F);
+        farClip = std::clamp(finiteOr(farClip, 96.0F), 1.0F, 512.0F);
+        transmittanceLimit = std::clamp(finiteOr(transmittanceLimit, 0.018F), 0.001F, 0.5F);
+        temporalBlend = std::clamp(finiteOr(temporalBlend, 0.82F), 0.0F, 0.95F);
+        windSpeed = std::clamp(finiteOr(windSpeed, 0.018F), -4.0F, 4.0F);
+        phaseG = std::clamp(finiteOr(phaseG, 0.58F), -0.95F, 0.95F);
+        powderStrength = std::clamp(finiteOr(powderStrength, 0.64F), 0.0F, 4.0F);
+        baseBrightness = std::clamp(finiteOr(baseBrightness, 0.42F), 0.0F, 4.0F);
+        absorption = std::clamp(finiteOr(absorption, 0.82F), 0.0F, 8.0F);
+        exposure = std::clamp(finiteOr(exposure, 1.0F), 0.01F, 8.0F);
+
+        windDirection = normalizeOr(windDirection, glm::vec2{1.0F, 0.24F});
+    }
+
     auto makeCloudNubisParameters(
         CloudSettings const& settings,
         Environment::SunSkyState const& sunSky,
@@ -134,6 +157,102 @@ namespace Aerkanis::Cloud
             },
         };
         return parameters;
+    }
+
+    auto makeCloudNubisCubedParameters(
+        CloudNubisCubedSettings const& settings,
+        Environment::SunSkyState const& sunSky,
+        Scene::Camera const& camera,
+        vk::Extent2D extent,
+        float elapsedSeconds,
+        glm::mat4 const& previousViewProjection,
+        bool historyValid) -> CloudNubisCubedParameters
+    {
+        CloudNubisCubedSettings cloud = settings;
+        cloud.sanitize();
+
+        Scene::Camera sanitizedCamera = camera;
+        sanitizedCamera.sanitize();
+
+        const float aspectRatio =
+            extent.height == 0
+                ? 1.0F
+                : static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        const glm::mat4 viewProjection = sanitizedCamera.viewProjection(aspectRatio);
+        const glm::mat4 inverseViewProjection = glm::inverse(viewProjection);
+        const glm::vec2 wind = cloud.windDirection * cloud.windSpeed;
+        const float halfHorizontalExtent = 4.4F * cloud.voxelScale;
+        const float halfVerticalExtent = halfHorizontalExtent * 0.125F;
+        const float verticalCenter = 0.4F * cloud.voxelScale;
+        const float bottom = verticalCenter - halfVerticalExtent;
+        const float top = verticalCenter + halfVerticalExtent;
+        const glm::mat4 safePreviousViewProjection = historyValid ? previousViewProjection : viewProjection;
+
+        return CloudNubisCubedParameters{
+            .inverseViewProjectionRow0 = matrixRow(inverseViewProjection, 0),
+            .inverseViewProjectionRow1 = matrixRow(inverseViewProjection, 1),
+            .inverseViewProjectionRow2 = matrixRow(inverseViewProjection, 2),
+            .inverseViewProjectionRow3 = matrixRow(inverseViewProjection, 3),
+            .cameraPositionTime = glm::vec4{sanitizedCamera.position, std::max(elapsedSeconds, 0.0F)},
+            .screenAndSteps = glm::vec4{
+                static_cast<float>(extent.width),
+                static_cast<float>(extent.height),
+                cloud.enabled ? static_cast<float>(cloud.stepCount) : 0.0F,
+                static_cast<float>(cloud.shadowStepCount),
+            },
+            .boundsMinDataset = glm::vec4{
+                -halfHorizontalExtent,
+                bottom,
+                -halfHorizontalExtent,
+                static_cast<float>(cloud.datasetIndex),
+            },
+            .boundsMaxDensity = glm::vec4{
+                halfHorizontalExtent,
+                top,
+                halfHorizontalExtent,
+                cloud.densityMultiplier,
+            },
+            .detailAndMarch = glm::vec4{
+                cloud.detailScale,
+                cloud.detailStrength,
+                cloud.farClip,
+                cloud.transmittanceLimit,
+            },
+            .windAndExposure = glm::vec4{wind.x, wind.y, cloud.windSpeed, cloud.exposure},
+            .lighting = glm::vec4{
+                cloud.phaseG,
+                cloud.powderStrength,
+                cloud.baseBrightness,
+                cloud.voxelScale,
+            },
+            .sunDirectionAbsorption = glm::vec4{glm::normalize(sunSky.sunDirection), cloud.absorption},
+            .sunColorIntensity = glm::vec4{sunSky.sunColor, sunSky.sunIntensity},
+            .ambientColor = glm::vec4{sunSky.ambientColor, sunSky.daylight},
+            .skyHorizonColor = glm::vec4{
+                sunSky.skyHorizonColor * sunSky.skyIntensity,
+                sunSky.sunAngularRadiusRadians,
+            },
+            .skyZenithColor = glm::vec4{
+                sunSky.skyZenithColor * sunSky.skyIntensity,
+                sunSky.sunGlowStrength,
+            },
+            .previousViewProjectionRow0 = matrixRow(safePreviousViewProjection, 0),
+            .previousViewProjectionRow1 = matrixRow(safePreviousViewProjection, 1),
+            .previousViewProjectionRow2 = matrixRow(safePreviousViewProjection, 2),
+            .previousViewProjectionRow3 = matrixRow(safePreviousViewProjection, 3),
+            .splitAndGrid = glm::vec4{
+                cloud.nearFarSplitEnabled ? cloud.nearSplitDistance : cloud.farClip,
+                static_cast<float>(NubisCubedLightGridHorizontalSize),
+                static_cast<float>(NubisCubedLightGridVerticalSize),
+                cloud.temporalBlend,
+            },
+            .featureFlags = glm::vec4{
+                cloud.lightGridEnabled ? 1.0F : 0.0F,
+                cloud.nearFarSplitEnabled ? 1.0F : 0.0F,
+                cloud.temporalReprojectionEnabled ? 1.0F : 0.0F,
+                historyValid ? 1.0F : 0.0F,
+            },
+        };
     }
 
 }  // namespace Aerkanis::Cloud

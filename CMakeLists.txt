@@ -33,6 +33,7 @@ message(STATUS "slangc : ${SLANGC}")
 
 set(SHADER_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/asset/shader")
 set(SHADER_OUT_DIR "${CMAKE_BINARY_DIR}/shaders")
+file(GLOB_RECURSE _ALL_SLANG_HEADERS CONFIGURE_DEPENDS "${SHADER_SRC_DIR}/*.slangh")
 
 function(compile_slang_shader TARGET)
     cmake_parse_arguments(S "" "SOURCE;OUTPUT;PROFILE" "ENTRIES" ${ARGN})
@@ -60,7 +61,7 @@ function(compile_slang_shader TARGET)
                 -fvk-use-entrypoint-name
                 ${ENTRY_FLAGS}
                 -o "${SPV_OUT}"
-        DEPENDS "${S_SOURCE}"
+        DEPENDS "${S_SOURCE}" ${_ALL_SLANG_HEADERS}
         COMMENT "slangc  ${S_OUTPUT}"
         VERBATIM
     )

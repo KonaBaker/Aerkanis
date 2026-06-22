@@ -211,18 +211,37 @@ namespace Aerkanis::Cloud
             throw std::runtime_error("Cloud volume upload requires at least one slice");
         }
 
-        CpuImage firstSlice = loadCpuImage(numberedPath(directory, prefix, 0, suffix));
-        ensureImageLoaded(firstSlice, numberedPath(directory, prefix, 0, suffix));
+        std::vector<std::filesystem::path> slicePaths{};
+        slicePaths.reserve(sliceCount);
+        for (uint32_t sliceIndex = 0; sliceIndex < sliceCount; ++sliceIndex)
+        {
+            slicePaths.push_back(numberedPath(directory, prefix, sliceIndex, suffix));
+        }
+
+        return uploadVolumeSlicePaths(slicePaths, format);
+    }
+
+    auto CloudTextureUploader::uploadVolumeSlicePaths(
+        std::span<const std::filesystem::path> slicePaths,
+        vk::Format format) -> TextureResource
+    {
+        if (slicePaths.empty())
+        {
+            throw std::runtime_error("Cloud volume upload requires at least one slice");
+        }
+
+        CpuImage firstSlice = loadCpuImage(slicePaths.front());
+        ensureImageLoaded(firstSlice, slicePaths.front());
 
         const uint32_t width = static_cast<uint32_t>(firstSlice.width);
         const uint32_t height = static_cast<uint32_t>(firstSlice.height);
         const std::size_t sliceSize = firstSlice.pixels.size();
-        std::vector<std::byte> volumePixels(sliceSize * sliceCount);
+        std::vector<std::byte> volumePixels(sliceSize * slicePaths.size());
         std::memcpy(volumePixels.data(), firstSlice.pixels.data(), sliceSize);
 
-        for (uint32_t sliceIndex = 1; sliceIndex < sliceCount; ++sliceIndex)
+        for (std::size_t sliceIndex = 1; sliceIndex < slicePaths.size(); ++sliceIndex)
         {
-            const std::filesystem::path slicePath = numberedPath(directory, prefix, sliceIndex, suffix);
+            const std::filesystem::path& slicePath = slicePaths[sliceIndex];
             CpuImage slice = loadCpuImage(slicePath);
             ensureImageLoaded(slice, slicePath);
             if (static_cast<uint32_t>(slice.width) != width || static_cast<uint32_t>(slice.height) != height)
@@ -237,7 +256,7 @@ namespace Aerkanis::Cloud
             volumePixels,
             width,
             height,
-            sliceCount,
+            static_cast<uint32_t>(slicePaths.size()),
             vk::ImageType::e3D,
             vk::ImageViewType::e3D,
             format);
