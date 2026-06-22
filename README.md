@@ -17,3 +17,9 @@ The name, **Aerkanis**, is composed of **Aer**(air/atmosphere) + vul**kan** + nu
 | <img src="./asset/image/image-20260621182609162.png" alt="image-20260621182609162" style="zoom:60%;" /> | <img src="./asset/image/image-20260621182540660.png" alt="image-20260621182540660" style="zoom:50%;" /> |
 
 - nubis3(cubed)
+
+| <img src="./asset/image/image-20260622235454918.png" alt="image-20260622235454918" style="zoom: 67%;" /> | <img src="./asset/image/image-20260622235648640.png" alt="image-20260622235648640" style="zoom: 80%;" /> |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+
+
+
